@@ -1,33 +1,57 @@
 package com.github.jamsa.jtv.server.network
 
-import com.github.jamsa.jtv.common.codec.{JtvFrameEncoder, JtvMessageDecode, JtvMessageEncode, JtvFrameDecoder}
-import com.github.jamsa.jtv.common.model.JtvMessage
+import com.github.jamsa.jtv.common.codec.{JtvFrameDecoder, JtvFrameEncoder, JtvMessageDecode, JtvMessageEncode}
+import com.github.jamsa.jtv.common.model._
 import com.typesafe.scalalogging.Logger
 import io.netty.bootstrap.ServerBootstrap
-import io.netty.channel.group.DefaultChannelGroup
-import io.netty.channel.{Channel, ChannelHandlerContext, ChannelInitializer, SimpleChannelInboundHandler}
+import io.netty.channel._
 import io.netty.channel.nio.NioEventLoopGroup
 import io.netty.channel.socket.nio.{NioServerSocketChannel, NioSocketChannel}
-import io.netty.util.concurrent.GlobalEventExecutor
-
+import com.github.jamsa.jtv.common.utils.ChannelUtils
+import com.github.jamsa.jtv.server.manager.{JtvServerManager}
 
 class ServerHandler extends SimpleChannelInboundHandler[JtvMessage]{
 
-  private val channelGroup = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE)
-
+  private val logger = Logger(classOf[ServerHandler])
 
   override def channelRead0(ctx: ChannelHandlerContext, msg: JtvMessage): Unit = {
-    print(s"接收消息:${msg}")
+    logger.info(s"接收消息:${msg}")
+
+    val sid = ChannelUtils.getSessionId(ctx.channel())
+
+    if(sid==None && !(msg.isInstanceOf[LoginRequest])){
+      ctx.channel().writeAndFlush(ErrorMessage("未登录"))
+      ctx.channel().close()
+      return
+    }
+
+    msg match {
+      case loginRequest:LoginRequest => {
+        JtvServerManager.login(ctx,loginRequest)
+      }
+      case logoutRequest:LogoutRequest =>{
+        JtvServerManager.logout(ctx,logoutRequest)
+      }
+      case controlRequest:ControlRequest => {
+        JtvServerManager.controlReq(ctx,controlRequest)
+      }
+      case controlResponse:ControlResponse => {
+        JtvServerManager.controlResp(ctx,controlResponse)
+    }
+      case _ => ctx.close()
+    }
   }
 
-  override def handlerAdded(ctx: ChannelHandlerContext): Unit = {
-    super.handlerAdded(ctx)
-    channelGroup.add(ctx.channel())
+  override def channelActive(ctx: ChannelHandlerContext): Unit = {
+    super.channelActive(ctx)
+    logger.info(s"新连接：${ctx.channel().id().asLongText()}")
+
   }
 
-  override def handlerRemoved(ctx: ChannelHandlerContext): Unit = {
-    super.handlerRemoved(ctx)
-    channelGroup.remove(ctx.channel())
+  override def channelInactive(ctx: ChannelHandlerContext): Unit = {
+    super.channelInactive(ctx)
+    logger.info(s"连接断开:${ctx.channel().id().asLongText()}")
+    ctx.channel().close()
   }
 
 }

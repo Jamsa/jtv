@@ -14,24 +14,27 @@ import javax.imageio.ImageIO
 //数据帧
 object JtvFrameType extends Enumeration {
   type JtvFrameType = Value
-  val KEY_EVENT ,MOUSE_EVENT ,SCREEN_CAPTURE,REQUEST,RESPONSE = Value
+  val KEY_EVENT ,MOUSE_EVENT,SCREEN_CAPTURE,LOGIN_REQUEST,LOGIN_RESPONSE,CONTROL_REQUEST,CONTROL_RESPONSE = Value
 }
 import JtvFrameType._
 class JtvFrame(val version:Int, val msgType:JtvFrameType, val sessionId:Int, val contentLength:Int, val content:Array[Byte])
 
 object JtvFrame{
-
+  var sessionId = 0
+  val version = 1
   def apply(jvtMessage: JtvMessage): Option[JtvFrame] = {
     val msgType = jvtMessage match {
       case _:ScreenCaptureMessage => SCREEN_CAPTURE
       case _:MouseEventMessage => MOUSE_EVENT
       case _:KeyEventMessage => KEY_EVENT
-      case _:RequestMessage => REQUEST
-      case _:ResponseMessage => RESPONSE
+      case _:LoginRequest => LOGIN_REQUEST
+      case _:LoginResponse => LOGIN_RESPONSE
+      case _:ControlRequest => CONTROL_REQUEST
+      case _:ControlResponse => CONTROL_RESPONSE
     }
 
     Try(CodecUtils.encode(jvtMessage)) match {
-      case Success(arr) =>Some(new JtvFrame(1,msgType,1,arr.length,arr))
+      case Success(arr) =>Some(new JtvFrame(version,msgType,sessionId,arr.length,arr))
       case _ => None
     }
   }
@@ -55,6 +58,21 @@ case class ScreenCaptureMessage(val image:Array[Byte], val originWidth:Int, val 
 case class MouseEventMessage(val mouseEvent: MouseEvent, val screenWidth:Int, val screenHeight:Int) extends JtvMessage
 case class KeyEventMessage(val keyEvent: KeyEvent) extends JtvMessage
 
+case class ErrorMessage(val message:String) extends JtvMessage
+//登录
+case class LoginRequest(val username:String,val password:String) extends JtvMessage
+case class LoginResponse(val result:Boolean,val message:String,val sessionId:Int,val sessionPassword:String) extends JtvMessage
+case class LogoutRequest(val sessionId:String) extends JtvMessage
+
+//请求控制
+case class ControlRequest(val targetSessionId:Int,val targetSessionPassword:String,val sourceSessionId:Int,val sourceChannelId:Option[String]) extends JtvMessage{
+  def this(targetSessionId:Int,targetSessionPassword:String,sourceSessionId:Int){
+    this(targetSessionId,targetSessionPassword,sourceSessionId,None)
+  }
+}
+case class ControlResponse(val result:Boolean,val message:String,val sourceSessionId:Int,val sourceChannelId:String) extends JtvMessage
+
+/*
 object RequestMessageType extends Enumeration{
   type RequestMessageType = Value
   val CONNECT_SERVER,DISCONNECT_SERVER,CONNECT_TO,WAIT_CONNECT = Value
@@ -62,6 +80,7 @@ object RequestMessageType extends Enumeration{
 //服务器交互命令
 case class RequestMessage(val messageType:RequestMessageType.RequestMessageType,val sessionId:Int,val message:String,val payload:Map[String,AnyRef]) extends JtvMessage
 case class ResponseMessage(val result:Boolean,val messageType:RequestMessageType.RequestMessageType,val sessionId:Int,val message:String,val payload:Map[String,AnyRef]) extends JtvMessage
+*/
 
 object JtvMessage{
   def apply(bufferedImage: BufferedImage): ScreenCaptureMessage = {
@@ -78,11 +97,11 @@ object JtvMessage{
     ScreenCaptureMessage(bos.toByteArray,width,height)
   }
 
+  /*
   def apply(mouseEvent: MouseEvent,screenWidth:Int,screenHeight:Int): MouseEventMessage = MouseEventMessage(mouseEvent,screenWidth,screenHeight)
 
   def apply(keyEvent: KeyEvent): KeyEventMessage = KeyEventMessage(keyEvent)
 
-  /*
   def unapply(message: JtvMessage): Option[AnyRef] ={
      Try {
       message match {
@@ -102,4 +121,5 @@ object JtvMessage{
     }
   }*/
 }
+
 

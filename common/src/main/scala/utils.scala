@@ -4,6 +4,9 @@ import java.awt.{Graphics2D, Image}
 import java.awt.image.BufferedImage
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, ObjectInputStream, ObjectOutputStream}
 
+import io.netty.channel.Channel
+import io.netty.util.AttributeKey
+
 object CodecUtils{
   def encode(obj:AnyRef):Array[Byte]={
     val out = new ByteArrayOutputStream()
@@ -34,4 +37,18 @@ object ImageUtils{
     g2d.dispose()
     resized
   }
+}
+
+
+object ChannelUtils{
+  val SESSIONID_KEY = AttributeKey.newInstance[Int]("sessionId")
+
+  def getSessionId(channel:Channel)={
+    Option(channel.attr(SESSIONID_KEY).get())
+  }
+
+  def setSessionId(channel:Channel,sessionId:Int)={
+    channel.attr(SESSIONID_KEY).set(sessionId)
+  }
+
 }
