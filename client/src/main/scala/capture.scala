@@ -4,7 +4,7 @@ import java.awt.{Rectangle, Robot, Toolkit}
 
 import com.github.jamsa.jtv.client.manager.JtvClientManager
 
-object ScreenCapture extends Thread{
+class ScreenCapture extends Thread{
 
   val tk = Toolkit.getDefaultToolkit
   val dm = tk.getScreenSize
@@ -26,7 +26,7 @@ object ScreenCapture extends Thread{
       while (!Thread.interrupted()) {
         val startMillis = System.currentTimeMillis()
         val bufferedImage = robot.createScreenCapture(rec)
-        JtvClientManager.setScreenCapture(bufferedImage);
+        JtvClientManager.setScreenCapture(bufferedImage)
         /*callback match {
           case Some(cb) => cb(bufferedImage)
           case _ => None

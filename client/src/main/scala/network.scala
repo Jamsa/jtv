@@ -18,8 +18,15 @@ class ClientHandler extends SimpleChannelInboundHandler[JtvMessage]{
   override def channelRead0(ctx: ChannelHandlerContext, msg: JtvMessage): Unit = {
     logger.info(s"接收到消息:${msg}")
     msg match {
-      case loginRequest:LoginResponse =>{
-        JtvClientManager.loginResp(ctx,loginRequest)
+      case m:LoginResponse =>JtvClientManager.loginResp(ctx,m)
+      case m:ScreenCaptureMessage => JtvClientManager.receiveScreenCapture(m)
+      case m:ControlRequest =>JtvClientManager.acceptControlReq(m)
+      case m:ControlResponse =>JtvClientManager.controlResp(ctx,m)
+      case m:ErrorMessage => JtvClientManager.receiveErrorMessage(m)
+      case m:MouseEventMessage => JtvClientManager.receiveMouseEvent(m)
+      case m:KeyEventMessage => JtvClientManager.receiveKeyEvent(m)
+      case _ => {
+        logger.info(s"无法识别的消息，关闭连接${ctx.channel().id().asLongText()}")
       }
     }
   }

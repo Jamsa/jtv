@@ -19,26 +19,38 @@ class ServerHandler extends SimpleChannelInboundHandler[JtvMessage]{
 
     val sid = ChannelUtils.getSessionId(ctx.channel())
 
-    if(sid==None && !(msg.isInstanceOf[LoginRequest])){
+    /*if(sid==None && !(msg.isInstanceOf[LoginRequest])){
       ctx.channel().writeAndFlush(ErrorMessage("未登录"))
       ctx.channel().close()
       return
-    }
+    }*/
 
     msg match {
-      case loginRequest:LoginRequest => {
-        JtvServerManager.login(ctx,loginRequest)
+      case m:LoginRequest => {
+        JtvServerManager.login(ctx,m)
       }
-      case logoutRequest:LogoutRequest =>{
-        JtvServerManager.logout(ctx,logoutRequest)
+      case m:LogoutRequest =>{
+        JtvServerManager.logout(ctx,m)
       }
-      case controlRequest:ControlRequest => {
-        JtvServerManager.controlReq(ctx,controlRequest)
+      case m:ControlRequest => {
+        JtvServerManager.controlReq(ctx,m)
       }
-      case controlResponse:ControlResponse => {
-        JtvServerManager.controlResp(ctx,controlResponse)
-    }
-      case _ => ctx.close()
+      case m:ControlResponse => {
+        JtvServerManager.controlResp(ctx,m)
+      }
+      case m:ScreenCaptureMessage =>{
+        JtvServerManager.routeMessage(ctx,m)
+      }
+      case m:MouseEventMessage =>{
+        JtvServerManager.routeMessage(ctx,m)
+      }
+      case m:KeyEventMessage =>{
+        JtvServerManager.routeMessage(ctx,m)
+      }
+      case _ => {
+        logger.info(s"无法识别的消息，关闭连接${ctx.channel().id().asLongText()}")
+        ctx.close()
+      }
     }
   }
 

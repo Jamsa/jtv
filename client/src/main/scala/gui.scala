@@ -1,34 +1,134 @@
 package com.github.jamsa.jtv.client.gui
 
 import java.awt.FlowLayout
+import java.awt.event._
+import java.awt.image.BufferedImage
+import java.io.ByteArrayInputStream
+import java.util.{Observable, Observer}
 
-import javax.swing.{JButton, JFrame, JLabel, JTextField}
+import com.github.jamsa.jtv.client.gui.MainFrame.setSize
+import com.github.jamsa.jtv.client.manager.JtvClientManager
+import com.github.jamsa.jtv.common.model.{ErrorMessage, LoginResponse, ScreenCaptureMessage}
+import com.github.jamsa.jtv.common.utils.ImageUtils
+import javax.imageio.ImageIO
+import javax.swing._
 
 object MainFrame extends JFrame{
 
-  val remoteIp = new JTextField(10)
-  val remotePort = new JTextField(10)
+  val sessionId = new JTextField(10)
+  val sessionPassword = new JTextField(10)
 
-  val connectBtn = new JButton("连接")
-  var connectStatus = 0
-  val listenBtn = new JButton("启动监听")
-  val listenStatus = 0
+  val connectBtn = new JButton("申请控制")
+  var initFlag = false
 
-  def initFrame(): Unit ={
+  private def initFrame(): Unit ={
+    if(initFlag)return
     setTitle("JTV")
     setSize(300,100)
     setAlwaysOnTop(true)
     val contentPanel = getContentPane
     contentPanel.setLayout(new FlowLayout())
-    contentPanel.add(new JLabel("远程主机："))
-    contentPanel.add(remoteIp)
-    contentPanel.add(new JLabel("端口："))
-    contentPanel.add(remotePort)
+    contentPanel.add(new JLabel("会话："))
+    contentPanel.add(sessionId)
+    sessionId.setEditable(false)
+    contentPanel.add(new JLabel("密码："))
+    contentPanel.add(sessionPassword)
+    sessionPassword.setEditable(false)
     contentPanel.add(connectBtn)
-    contentPanel.add(listenBtn)
 
+    setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE)
+
+    JtvClientManager.addObserver((o: Observable, arg: Any)=>{
+      arg match {
+        case resp:LoginResponse => {
+          sessionId.setText(resp.sessionId.toString)
+          sessionPassword.setText(resp.sessionPassword)
+        }
+        case msg:ErrorMessage =>{
+          JOptionPane.showMessageDialog(this,msg.message)
+      }
+        case _ => None
+      }
+    })
+
+    connectBtn.addActionListener((e: ActionEvent)=>{
+      val targetSessionId = JOptionPane.showInputDialog("请输入要控制的会话")
+      if(targetSessionId!=null) {
+        JtvClientManager.sendControlReq(targetSessionId.toInt, "123")
+
+        new RemoteFrame().setVisible(true)
+      }
+    })
+
+    initFlag = true
   }
 
   initFrame()
+}
 
+class RemoteFrame extends JFrame{ frame=>
+
+  val label = new JLabel()
+  private def initFrame(): Unit ={
+    val contentPanel = getContentPane
+    contentPanel.add(label)
+    setSize(960,540)
+
+    JtvClientManager.addObserver((o:Observable,arg:Any)=>{
+      if(!this.isVisible) return
+      arg match  {
+        case m:ScreenCaptureMessage =>{
+          label.setIcon(new ImageIcon(ImageUtils.resizeImage(ImageIO.read(new ByteArrayInputStream(m.image)),960,540)))
+        }
+      }
+    })
+
+    addWindowListener(new WindowAdapter {
+      override def windowClosing(e: WindowEvent): Unit = {
+        super.windowClosing(e)
+        JtvClientManager.stopControl()
+      }
+
+
+    })
+
+    label.addMouseListener(new MouseListener {
+      override def mouseClicked(e: MouseEvent): Unit = {
+
+        JtvClientManager.sendEvent(e,frame.getWidth,frame.getHeight)
+      }
+
+      override def mousePressed(e: MouseEvent): Unit = {
+        JtvClientManager.sendEvent(e,frame.getWidth,frame.getHeight)
+      }
+
+      override def mouseReleased(e: MouseEvent): Unit = {
+        JtvClientManager.sendEvent(e,frame.getWidth,frame.getHeight)
+      }
+
+      override def mouseEntered(e: MouseEvent): Unit = {
+        JtvClientManager.sendEvent(e,frame.getWidth,frame.getHeight)
+      }
+
+      override def mouseExited(e: MouseEvent): Unit = {
+        JtvClientManager.sendEvent(e,frame.getWidth,frame.getHeight)
+      }
+    })
+
+    label.addKeyListener(new KeyListener {
+      override def keyTyped(e: KeyEvent): Unit = {
+        JtvClientManager.sendEvent(e,frame.getWidth,frame.getHeight)
+      }
+
+      override def keyPressed(e: KeyEvent): Unit = {
+        JtvClientManager.sendEvent(e,frame.getWidth,frame.getHeight)
+      }
+
+      override def keyReleased(e: KeyEvent): Unit = {
+        JtvClientManager.sendEvent(e,frame.getWidth,frame.getHeight)
+      }
+    })
+  }
+
+  initFrame()
 }

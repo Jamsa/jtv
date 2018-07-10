@@ -1,13 +1,12 @@
 package com.github.jamsa.jtv.common.model
 
-import java.awt.event.{KeyEvent, MouseEvent}
+import java.awt.event.{InputEvent, KeyEvent, MouseEvent}
 import java.awt.image.BufferedImage
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import com.github.jamsa.jtv.common.utils.{CodecUtils, ImageUtils}
 
 import scala.util.{Success, Try}
-
 import javax.imageio.ImageIO
 
 
@@ -97,10 +96,15 @@ object JtvMessage{
     ScreenCaptureMessage(bos.toByteArray,width,height)
   }
 
-  /*
-  def apply(mouseEvent: MouseEvent,screenWidth:Int,screenHeight:Int): MouseEventMessage = MouseEventMessage(mouseEvent,screenWidth,screenHeight)
+  def apply(inputEvent: InputEvent,screenWidth:Int,screenHeight:Int): JtvMessage = {
+    inputEvent match  {
+      case m:MouseEvent => MouseEventMessage(m,screenWidth,screenHeight)
+      case m:KeyEvent => KeyEventMessage(m)
+      case _ => throw new RuntimeException("事件类型错误")
+    }
+  }
 
-  def apply(keyEvent: KeyEvent): KeyEventMessage = KeyEventMessage(keyEvent)
+  /*
 
   def unapply(message: JtvMessage): Option[AnyRef] ={
      Try {
