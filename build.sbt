@@ -28,14 +28,16 @@ lazy val common = (project in file("common"))
 lazy val client = (project in file("client")).dependsOn(common)
   .settings(
     commonSettings,
-    name := "jtv-client"
-  )
+    name := "jtv-client",
+    mainClass in Compile := Some("com.github.jamsa.jtv.client.manager.JtvClientManager")
+  ).enablePlugins(JavaAppPackaging)
 
 lazy val server = (project in file("server")).dependsOn(common)
   .settings(
     commonSettings,
-    name := "jtv-server"
-  )
+    name := "jtv-server",
+    mainClass in Compile := Some("com.github.jamsa.jtv.server.JtvMain")
+  ).enablePlugins(JavaAppPackaging)
 
 
 lazy val root = (project in file(".")).aggregate(common, client, server)

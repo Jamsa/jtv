@@ -66,7 +66,7 @@ object MainFrame extends JFrame{
   initFrame()
 }
 
-class RemoteFrame extends JFrame{ frame=>
+class RemoteFrame extends JFrame with Observer{ frame=>
 
   val label = new JLabel()
   private def initFrame(): Unit ={
@@ -74,27 +74,19 @@ class RemoteFrame extends JFrame{ frame=>
     contentPanel.add(label)
     setSize(960,540)
 
-    JtvClientManager.addObserver((o:Observable,arg:Any)=>{
-      if(!this.isVisible) return
-      arg match  {
-        case m:ScreenCaptureMessage =>{
-          label.setIcon(new ImageIcon(ImageUtils.resizeImage(ImageIO.read(new ByteArrayInputStream(m.image)),960,540)))
-        }
-      }
-    })
+
+    JtvClientManager.addObserver(frame)
 
     addWindowListener(new WindowAdapter {
       override def windowClosing(e: WindowEvent): Unit = {
         super.windowClosing(e)
         JtvClientManager.stopControl()
+        JtvClientManager.deleteObserver(frame)
       }
-
-
     })
 
-    label.addMouseListener(new MouseListener {
+    val mouseAdapter = new MouseAdapter {
       override def mouseClicked(e: MouseEvent): Unit = {
-
         JtvClientManager.sendEvent(e,frame.getWidth,frame.getHeight)
       }
 
@@ -113,9 +105,25 @@ class RemoteFrame extends JFrame{ frame=>
       override def mouseExited(e: MouseEvent): Unit = {
         JtvClientManager.sendEvent(e,frame.getWidth,frame.getHeight)
       }
-    })
 
-    label.addKeyListener(new KeyListener {
+      override def mouseWheelMoved(e: MouseWheelEvent): Unit = {
+        JtvClientManager.sendEvent(e,frame.getWidth,frame.getHeight)
+      }
+
+      override def mouseDragged(e: MouseEvent): Unit = {
+        JtvClientManager.sendEvent(e,frame.getWidth,frame.getHeight)
+      }
+
+      override def mouseMoved(e: MouseEvent): Unit = {
+        JtvClientManager.sendEvent(e,frame.getWidth,frame.getHeight)
+      }
+    }
+
+    label.addMouseListener(mouseAdapter)
+    label.addMouseMotionListener(mouseAdapter)
+    label.addMouseWheelListener(mouseAdapter)
+
+    val keyAdapter = new KeyAdapter {
       override def keyTyped(e: KeyEvent): Unit = {
         JtvClientManager.sendEvent(e,frame.getWidth,frame.getHeight)
       }
@@ -127,8 +135,19 @@ class RemoteFrame extends JFrame{ frame=>
       override def keyReleased(e: KeyEvent): Unit = {
         JtvClientManager.sendEvent(e,frame.getWidth,frame.getHeight)
       }
-    })
+    }
+
+    label.addKeyListener(keyAdapter)
   }
 
   initFrame()
+
+  override def update(o: Observable, arg: scala.Any): Unit = {
+    if(!this.isVisible) return
+    arg match  {
+      case m:ScreenCaptureMessage =>{
+        label.setIcon(new ImageIcon(ImageUtils.resizeImage(ImageIO.read(new ByteArrayInputStream(m.image)),960,540)))
+      }
+    }
+  }
 }

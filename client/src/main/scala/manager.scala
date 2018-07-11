@@ -1,9 +1,10 @@
 package com.github.jamsa.jtv.client.manager
 
 import java.awt.{Robot, Toolkit}
-import java.awt.event.InputEvent
+import java.awt.event.{InputEvent, KeyEvent, MouseEvent}
 import java.awt.image.BufferedImage
-import java.util.Observable
+import java.io.{File, FileInputStream}
+import java.util.{Observable, Properties}
 
 import com.github.jamsa.jtv.client.capture.ScreenCapture
 import com.github.jamsa.jtv.client.gui.MainFrame
@@ -15,6 +16,7 @@ import io.netty.channel.{Channel, ChannelFuture, ChannelHandlerContext}
 import io.netty.util.concurrent.Future
 
 import scala.collection.mutable
+import scala.util.{Failure, Properties, Success, Try}
 
 /*
 object JtvManagerEventType extends Enumeration{
@@ -207,16 +209,60 @@ object JtvClientManager extends Observable{
   def receiveMouseEvent(mouseEventMessage: MouseEventMessage): Unit ={
     logger.info(s"接收鼠标事件${mouseEventMessage}")
     val mouseEvent = mouseEventMessage.mouseEvent
-    val x = mouseEvent.getX/mouseEventMessage.screenWidth * dm.width
-    val y = mouseEvent.getY/mouseEventMessage.screenHeight * dm.height
 
-    //robot.mouseMove(x,y)
-    //robot.mousePress(InputEvent.BUTTON2_MASK)
+    mouseEvent.getID match {
+      case MouseEvent.MOUSE_PRESSED => {
+        val button = mouseEvent.getButton
 
+        button match {
+          case MouseEvent.BUTTON1 => {
+            robot.mousePress(InputEvent.BUTTON1_MASK)
+          }
+          case MouseEvent.BUTTON2 => {
+            robot.mousePress(InputEvent.BUTTON2_MASK)
+          }
+          case MouseEvent.BUTTON3 => {
+            robot.mousePress(InputEvent.BUTTON3_MASK)
+          }
+          case _ => None
+        }
+      }
+      case MouseEvent.MOUSE_RELEASED | MouseEvent.MOUSE_CLICKED => {
+        val button = mouseEvent.getButton
+
+        button match {
+          case MouseEvent.BUTTON1 => {
+            robot.mouseRelease(InputEvent.BUTTON1_MASK)
+          }
+          case MouseEvent.BUTTON2 => {
+            robot.mouseRelease(InputEvent.BUTTON2_MASK)
+          }
+          case MouseEvent.BUTTON3 => {
+            robot.mouseRelease(InputEvent.BUTTON3_MASK)
+          }
+          case _ => None
+        }
+      }
+      case MouseEvent.MOUSE_MOVED | MouseEvent.MOUSE_DRAGGED => {
+        val x = mouseEvent.getX * dm.width/mouseEventMessage.screenWidth
+        val y = mouseEvent.getY * dm.height/mouseEventMessage.screenHeight
+        robot.mouseMove(x, y)
+      }
+      case _ => None
+    }
   }
 
   def receiveKeyEvent(keyEventMessage: KeyEventMessage): Unit ={
     logger.info(s"接收键盘事件${keyEventMessage}")
+    val keyEvent = keyEventMessage.keyEvent
+    keyEvent.getID match {
+      case KeyEvent.KEY_PRESSED =>{
+        robot.keyPress(keyEvent.getKeyCode)
+      }
+      case KeyEvent.KEY_RELEASED=>{
+        robot.keyRelease(keyEvent.getKeyCode)
+      }
+    }
   }
 
   /**
@@ -230,8 +276,26 @@ object JtvClientManager extends Observable{
   }
 
   def main(args: Array[String]): Unit = {
+
+    val props = new Properties()
+    val file = new File(ClientSessionManager.getClass.getProtectionDomain.getCodeSource.getLocation.toURI).getParentFile.getPath+"/../bin/config.properties"
+    val (host,port) =Try[(String,Int)] {
+      val fis = new FileInputStream(file)
+      props.load(fis)
+      val h = props.getProperty("host")
+      val p = props.getProperty("port").toInt
+      fis.close()
+      (h,p)
+    } match{
+      case Success((host,port)) =>(host,port)
+      case failure:Failure[(String,Int)] =>{
+        logger.error("读取配置文件失败，使用默认值",failure.exception)
+        ("localhost",10090)
+      }
+    }
+
     MainFrame.setVisible(true)
-    Client.startup("localhost",10090)
+    Client.startup(host,port)
 
     JtvClientManager.loginReq("","")
     Thread.sleep(3000)
