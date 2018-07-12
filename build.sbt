@@ -1,6 +1,6 @@
 import Dependencies._
 
-enablePlugins(JavaAppPackaging)
+//enablePlugins(JavaAppPackaging)
 
 
 lazy val commonSettings = Seq(
