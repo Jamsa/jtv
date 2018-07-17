@@ -1,7 +1,7 @@
 package com.github.jamsa.jtv.client.manager
 
 import java.awt.{Robot, Toolkit}
-import java.awt.event.{InputEvent, KeyEvent, MouseEvent, MouseWheelEvent}
+import java.awt.event.{InputEvent, KeyEvent, MouseEvent}
 import java.awt.image.BufferedImage
 import java.util.Observable
 
@@ -109,11 +109,10 @@ object MainFrameManager extends Observable{
   private val robot = new Robot()
   def receiveMouseEvent(mouseEventMessage: MouseEventMessage): Unit ={
     logger.info(s"接收鼠标事件${mouseEventMessage}")
-    val mouseEvent = mouseEventMessage.mouseEvent
 
-    mouseEvent.getID match {
+    mouseEventMessage.id match {
       case MouseEvent.MOUSE_PRESSED => {
-        val button = mouseEvent.getButton
+        val button = mouseEventMessage.button
 
         button match {
           case MouseEvent.BUTTON1 => {
@@ -129,7 +128,7 @@ object MainFrameManager extends Observable{
         }
       }
       case MouseEvent.MOUSE_RELEASED | MouseEvent.MOUSE_CLICKED => {
-        val button = mouseEvent.getButton
+        val button = mouseEventMessage.button
 
         button match {
           case MouseEvent.BUTTON1 => {
@@ -144,16 +143,12 @@ object MainFrameManager extends Observable{
           case _ => None
         }
       }
-      case MouseEvent.MOUSE_WHEEL =>{
-        if(mouseEvent.isInstanceOf[MouseWheelEvent]){
-          robot.mouseWheel(mouseEvent.asInstanceOf[MouseWheelEvent].getWheelRotation)
-        }
-      }
+      case MouseEvent.MOUSE_WHEEL =>robot.mouseWheel(mouseEventMessage.wheelRotation)
       case MouseEvent.MOUSE_MOVED | MouseEvent.MOUSE_DRAGGED => {
-        val x = mouseEvent.getX * dm.width/mouseEventMessage.screenWidth
-        val y = mouseEvent.getY * dm.height/mouseEventMessage.screenHeight
+        val x = mouseEventMessage.x * dm.width/mouseEventMessage.screenWidth
+        val y = mouseEventMessage.y * dm.height/mouseEventMessage.screenHeight
         robot.mouseMove(x, y)
-        logger.info(s"(${mouseEvent.getX},${mouseEvent.getY})->(${x},${y})")
+        logger.info(s"(${mouseEventMessage.x},${mouseEventMessage.y})映射为(${x},${y})")
       }
       case _ => None
     }
@@ -161,13 +156,12 @@ object MainFrameManager extends Observable{
 
   def receiveKeyEvent(keyEventMessage: KeyEventMessage): Unit ={
     logger.info(s"接收键盘事件${keyEventMessage}")
-    val keyEvent = keyEventMessage.keyEvent
-    keyEvent.getID match {
+    keyEventMessage.id match {
       case KeyEvent.KEY_PRESSED =>{
-        robot.keyPress(keyEvent.getKeyCode)
+        robot.keyPress(keyEventMessage.keyCode)
       }
       case KeyEvent.KEY_RELEASED=>{
-        robot.keyRelease(keyEvent.getKeyCode)
+        robot.keyRelease(keyEventMessage.keyCode)
       }
     }
   }

@@ -1,12 +1,13 @@
 package com.github.jamsa.jtv.common.model
 
-import java.awt.event.{InputEvent, KeyEvent, MouseEvent}
+import java.awt.event.{InputEvent, KeyEvent, MouseEvent, MouseWheelEvent}
 import java.awt.image.BufferedImage
-import java.io.{ByteArrayOutputStream}
+import java.io.ByteArrayOutputStream
 
 import com.github.jamsa.jtv.common.utils.{CodecUtils, ImageUtils}
+import com.typesafe.scalalogging.Logger
 
-import scala.util.{Success, Try}
+import scala.util.{Failure, Success, Try}
 import javax.imageio.ImageIO
 
 
@@ -19,13 +20,14 @@ import JtvFrameType._
 class JtvFrame(val version:Int, val msgType:JtvFrameType, val sessionId:Int, val contentLength:Int, val content:Array[Byte])
 
 object JtvFrame{
+  private val logger = Logger(JtvFrame.getClass)
   var sessionId = 0
   val version = 1
   def apply(jvtMessage: JtvMessage): Option[JtvFrame] = {
     val msgType = jvtMessage match {
       case _:ScreenCaptureMessage => SCREEN_CAPTURE
       case _:MouseEventMessage => MOUSE_EVENT
-      case _:KeyEventMessage => KEY_EVENT
+      case m:KeyEventMessage => KEY_EVENT
       case _:LoginRequest => LOGIN_REQUEST
       case _:LoginResponse => LOGIN_RESPONSE
       case _:ControlRequest => CONTROL_REQUEST
@@ -37,7 +39,10 @@ object JtvFrame{
 
     Try(CodecUtils.encode(jvtMessage)) match {
       case Success(arr) =>Some(new JtvFrame(version,msgType,sessionId,arr.length,arr))
-      case _ => None
+      case Failure(e) => {
+        logger.error(s"消息转换失败：${jvtMessage}",e)
+        None
+      }
     }
   }
 
@@ -63,8 +68,8 @@ trait RoutableMessage extends JtvMessage
 //远程控制消息
 //case class ControlMessage() extends JtvMessage
 case class ScreenCaptureMessage(val image:Array[Byte], val originWidth:Int, val originHeight:Int) extends RoutableMessage with ClientSessionMessage
-case class MouseEventMessage(val mouseEvent: MouseEvent, val screenWidth:Int, val screenHeight:Int) extends RoutableMessage with ClientSessionMessage
-case class KeyEventMessage(val keyEvent: KeyEvent) extends RoutableMessage with ClientSessionMessage
+case class MouseEventMessage(val id:Int,val x:Int,val y:Int,val button:Int,val wheelRotation:Int, val screenWidth:Int, val screenHeight:Int) extends RoutableMessage with ClientSessionMessage
+case class KeyEventMessage(val id:Int,val keyCode:Int) extends RoutableMessage with ClientSessionMessage
 
 case class ErrorMessage(val message:String) extends RoutableMessage with ClientSessionMessage
 
@@ -108,8 +113,9 @@ object JtvMessage{
 
   def apply(inputEvent: InputEvent,screenWidth:Int,screenHeight:Int): JtvMessage = {
     inputEvent match  {
-      case m:MouseEvent => MouseEventMessage(m,screenWidth,screenHeight)
-      case m:KeyEvent => KeyEventMessage(m)
+      case m:MouseWheelEvent => MouseEventMessage(m.getID,m.getX,m.getY,m.getButton,m.getWheelRotation,screenWidth,screenHeight)
+      case m:MouseEvent => MouseEventMessage(m.getID,m.getX,m.getY,m.getButton,0,screenWidth,screenHeight)
+      case m:KeyEvent => KeyEventMessage(m.getID,m.getKeyCode)
       case _ => throw new RuntimeException("事件类型错误")
     }
   }

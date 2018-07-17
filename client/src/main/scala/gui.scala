@@ -24,7 +24,7 @@ object MainFrame extends JFrame with Observer{
     if(initFlag)return
     setTitle("JTV")
     setSize(300,100)
-    setAlwaysOnTop(true)
+    //setAlwaysOnTop(true)
     val contentPanel = getContentPane
     contentPanel.setLayout(new FlowLayout())
     contentPanel.add(new JLabel("会话："))
@@ -72,6 +72,7 @@ class RemoteDesktopPanel extends JPanel {
     private var changed = true
 
   setBackground(Color.GRAY)
+  this.setFocusable(true)
 
   def setImage(image: BufferedImage): Unit = { //this.image = image;
     this.image = Some(image)
