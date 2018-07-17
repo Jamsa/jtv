@@ -1,102 +1,20 @@
 package com.github.jamsa.jtv.client.manager
 
 import java.awt.{Robot, Toolkit}
-import java.awt.event.{InputEvent, KeyEvent, MouseEvent}
+import java.awt.event.{InputEvent, KeyEvent, MouseEvent, MouseWheelEvent}
 import java.awt.image.BufferedImage
-import java.io.{File, FileInputStream}
-import java.util.{Observable, Properties}
+import java.util.Observable
 
 import com.github.jamsa.jtv.client.capture.ScreenCapture
-import com.github.jamsa.jtv.client.gui.MainFrame
-import com.github.jamsa.jtv.client.network.Client
+import com.github.jamsa.jtv.client.network.ConnectionFactory
 import com.github.jamsa.jtv.common.model._
-import com.github.jamsa.jtv.common.utils.ChannelUtils
+import com.github.jamsa.jtv.common.network.{Connection, ConnectionCallback}
 import com.typesafe.scalalogging.Logger
-import io.netty.channel.{Channel, ChannelFuture, ChannelHandlerContext}
-import io.netty.util.concurrent.Future
+import io.netty.channel.{ChannelFuture, ChannelHandlerContext}
 
-import scala.collection.mutable
-import scala.util.{Failure, Properties, Success, Try}
 
-/*
-object JtvManagerEventType extends Enumeration{
-  type JtvManagerEventType = Value
-  val SCREEN_CAPTURE=Value
-}
-case class JtvManagerEvent()
-*/
-
-object ClientSessionManager{
-  val logger  = Logger(ClientSessionManager.getClass)
-
-  private var sessionChannel:Option[Channel]=None
-  private val workChannels = mutable.Map[String,Channel]()
-
-  def getSessionId = sessionChannel.flatMap(ChannelUtils.getSessionId(_))
-
-  def createSession():Option[Channel] = {
-    destroySession()
-    sessionChannel = this.createConnection()
-    sessionChannel.foreach(channel => {
-      logger.info(s"${channel.id().asLongText()}被设置为会话连接")
-    })
-    sessionChannel
-  }
-
-  def setSessionId(sessionId:Int)={
-
-    sessionChannel.foreach(channel => {
-      logger.info(s"设置会话id为：${sessionId}")
-      ChannelUtils.setSessionId(channel,sessionId)
-      workChannels.remove(channel.id().asLongText())
-    })
-
-  }
-
-  def createConnection()={
-    val result = Client.createChannel
-
-    result.foreach( ch => {
-      logger.info(s"新建连接:${ch.id().asLongText()}，设置会话ID为：${getSessionId}")
-      getSessionId.foreach(ChannelUtils.setSessionId(ch,_))
-      workChannels.put(ch.id().asLongText(),ch)
-      ch.closeFuture().addListener((future:ChannelFuture) =>{
-        logger.info(s"工作连接${future.channel().id().asLongText()}被关闭")
-        workChannels.remove(future.channel().id().asLongText())
-      })
-    })
-    result
-  }
-
-  def destroySession()={
-    workChannels.values.foreach(_.close().sync())
-    workChannels.clear()
-    sessionChannel.foreach(_.close().sync())
-    sessionChannel = None
-  }
-
-  def getSessionChannel()={
-
-    sessionChannel
-  }
-}
-
-object JtvClientManager extends Observable{
-  val logger  = Logger(JtvClientManager.getClass)
-
-  def connect(ip:String,port:Int): Unit ={
-
-  }
-
-  def listener(port:Int): Unit ={
-
-  }
-
-  def sendEvent(event:InputEvent,width:Int,height:Int): Unit ={
-    logger.info(s"发送控制事件${event}")
-
-    controlChannel.foreach(_.writeAndFlush(JtvMessage(event,width,height)))
-  }
+object MainFrameManager extends Observable{
+  val logger  = Logger(MainFrameManager.getClass)
 
   var captureThread:Option[ScreenCapture] = None
   def startCapture()={
@@ -115,16 +33,31 @@ object JtvClientManager extends Observable{
     //this.notifyObservers(bufferedImage)
     val msg = JtvMessage(bufferedImage)
     logger.info(s"发送屏幕消息${msg}")
-    beControlChannel.foreach(_.writeAndFlush(msg))
+    beControlConnection.foreach(_.sendMessage(msg))
   }
 
+  var sessionConnection:Option[Connection] = None
   /**
     * 登录，创建会话
     * @param username
     * @param password
     */
   def loginReq(username:String,password:String): Unit ={
-    ClientSessionManager.createSession().foreach(_.writeAndFlush(LoginRequest(username,password)))
+    ConnectionFactory.destroySession()
+    sessionConnection = ConnectionFactory.createConnection(new ConnectionCallback {
+      override def onClose(future: ChannelFuture): Unit = {
+        ConnectionFactory.destroySession()
+      }
+      override def onMessage(ctx: ChannelHandlerContext, message: JtvMessage): Unit = {
+        message match {
+          case m:LoginResponse =>receiveLoginResp(m)
+          case m:ControlRequest =>receiveControlReq(m)
+          case _ => None
+        }
+
+      }
+    })
+    sessionConnection.foreach(_.sendMessage(LoginRequest(username,password)))
   }
 
   /**
@@ -132,80 +65,48 @@ object JtvClientManager extends Observable{
     * @param ctx
     * @param loginResponse 登录响应
     */
-  def loginResp(ctx:ChannelHandlerContext,loginResponse: LoginResponse): Unit ={
+  private def receiveLoginResp(loginResponse: LoginResponse): Unit ={
     logger.info(s"登录响应${loginResponse}")
-    ClientSessionManager.setSessionId(loginResponse.sessionId)
+    ConnectionFactory.setSessionId(loginResponse.sessionId)
     this.setChanged()
     this.notifyObservers(loginResponse)
     //sessionPassword = Some(loginResponse.sessionPassword)
   }
 
-  //控制通道
-  var controlChannel:Option[Channel] = None
-  /**
-    * 发送连接请求
-    * @param targetSessionId 目标会话
-    * @param targetSessionPassword
-    */
-  def sendControlReq(targetSessionId:Int,targetSessionPassword:String): Unit ={
-    ClientSessionManager.getSessionId.foreach(sessionId => {
-      ClientSessionManager.createConnection().foreach(_.writeAndFlush(ControlRequest(targetSessionId, targetSessionPassword, sessionId, None)))
-    })
-  }
-
-  /**
-    * 连接控制响应
-    * @param ctx
-    * @param controlResponse
-    */
-  def controlResp(ctx:ChannelHandlerContext,controlResponse: ControlResponse): Unit ={
-    controlChannel = Some(ctx.channel())
-    ctx.channel().closeFuture().addListener((_:ChannelFuture) =>{
-      controlChannel = None
-    })
-  }
-
-  def stopControl(): Unit ={
-    logger.info("停止控制")
-    controlChannel.foreach(_.close())
-  }
-
-
-
-  //被控通道
-  var beControlChannel:Option[Channel] = None
+  //被控连接
+  var beControlConnection:Option[Connection] = None
   /**
     * 接收连接请求
-    * @param ctx 会话命令通道
     * @param controlRequest
     */
-  def acceptControlReq(controlRequest: ControlRequest): Unit ={
+  def receiveControlReq(controlRequest: ControlRequest): Unit ={
+    logger.info(s"接收到控制请求${controlRequest}")
     //从新通道返回，此通道作为被控通道
-    beControlChannel = ClientSessionManager.createConnection()
-    beControlChannel.foreach(channel => {
-      channel.closeFuture().addListener((_:ChannelFuture) => {
+    beControlConnection = ConnectionFactory.createConnection(new ConnectionCallback {
+      override def onClose(future: ChannelFuture): Unit = {
         stopCapture()
-        beControlChannel = None
-      })
-      channel.writeAndFlush(ControlResponse(true,"接受控制",controlRequest.sourceSessionId,controlRequest.sourceChannelId.getOrElse("")))
+        beControlConnection = None
+      }
+
+      override def onMessage(ctx: ChannelHandlerContext, message: JtvMessage): Unit = {
+        message match {
+          case m:MouseEventMessage => receiveMouseEvent(m)
+          case m:KeyEventMessage => receiveKeyEvent(m)
+          case _ => logger.warn(s"接收到无法处理的控制消息${message}")
+        }
+      }
     })
-    startCapture()
+    beControlConnection.foreach(conn => {
+      logger.info(s"接受控制请求${controlRequest}")
+      conn.sendMessage(ControlResponse(true,"接受控制",controlRequest.sourceSessionId,controlRequest.sourceChannelId.getOrElse("")))
+      startCapture()
+    })
+
   }
 
-  val tk = Toolkit.getDefaultToolkit
-  val dm = tk.getScreenSize
-  val robot = new Robot()
-
-  /**
-    * 接收远程桌面图像
-    * @param screenCapture
-    */
-  def receiveScreenCapture(screenCapture: ScreenCaptureMessage): Unit ={
-    logger.info(s"接收到图像${screenCapture}")
-    this.setChanged()
-    this.notifyObservers(screenCapture)
-  }
-
+  private val tk = Toolkit.getDefaultToolkit
+  private val dm = tk.getScreenSize
+  private val robot = new Robot()
   def receiveMouseEvent(mouseEventMessage: MouseEventMessage): Unit ={
     logger.info(s"接收鼠标事件${mouseEventMessage}")
     val mouseEvent = mouseEventMessage.mouseEvent
@@ -243,6 +144,11 @@ object JtvClientManager extends Observable{
           case _ => None
         }
       }
+      case MouseEvent.MOUSE_WHEEL =>{
+        if(mouseEvent.isInstanceOf[MouseWheelEvent]){
+          robot.mouseWheel(mouseEvent.asInstanceOf[MouseWheelEvent].getWheelRotation)
+        }
+      }
       case MouseEvent.MOUSE_MOVED | MouseEvent.MOUSE_DRAGGED => {
         val x = mouseEvent.getX * dm.width/mouseEventMessage.screenWidth
         val y = mouseEvent.getY * dm.height/mouseEventMessage.screenHeight
@@ -264,7 +170,6 @@ object JtvClientManager extends Observable{
       }
     }
   }
-
   /**
     * 接收到错误消息
     * @param errorMessage
@@ -275,36 +180,82 @@ object JtvClientManager extends Observable{
     this.notifyObservers(errorMessage)
   }
 
-  def main(args: Array[String]): Unit = {
+}
 
-    val props = new Properties()
-    val file = new File(ClientSessionManager.getClass.getProtectionDomain.getCodeSource.getLocation.toURI).getParentFile.getPath+"/../bin/config.properties"
-    val (host,port) =Try[(String,Int)] {
-      val fis = new FileInputStream(file)
-      props.load(fis)
-      val h = props.getProperty("host")
-      val p = props.getProperty("port").toInt
-      fis.close()
-      (h,p)
-    } match{
-      case Success((host,port)) =>(host,port)
-      case failure:Failure[(String,Int)] =>{
-        logger.error("读取配置文件失败，使用默认值",failure.exception)
-        ("localhost",10090)
+class RemoteFrameManager(val targetSessionId:Int,val targetSessionPassword:String) extends Observable{
+  val logger  = Logger(classOf[RemoteFrameManager])
+
+  var connection:Option[Connection] = None
+
+  def connect(): Unit ={
+    connection = ConnectionFactory.createConnection( new ConnectionCallback {
+      override def onClose(future: ChannelFuture): Unit = {
+        receiveErrorMessage(ErrorMessage("连接被关闭"))
       }
-    }
 
-    MainFrame.setVisible(true)
-    Client.startup(host,port)
-
-    JtvClientManager.loginReq("","")
-    Thread.sleep(3000)
-    /*ClientSessionManager.getSessionId.foreach(sessionId => {
-      ClientSessionManager.createConnection().foreach(_.writeAndFlush(ControlRequest(14, "123",sessionId, None)))
-    })*/
-    //JtvClientManager.sendControlReq(14,"123")
-    //Client.shutdown()
-
-    //Thread.sleep(30000)
+      override def onMessage(ctx: ChannelHandlerContext, message: JtvMessage): Unit = {
+        message match {
+          case m:ControlResponse => receiveControlResp(m)
+          case m:ScreenCaptureMessage => receiveScreenCapture(m)
+          case m:ErrorMessage => receiveErrorMessage(m)
+          case _ => logger.warn(s"接收到无法处理的消息${message}")
+        }
+      }
+    })
   }
+
+  /**
+    * 发送控制事件
+    * @param event 事件
+    * @param width 事件发生时屏幕宽
+    * @param height 事件发生时的屏幕高
+    */
+  def sendEvent(event:InputEvent,width:Int,height:Int): Unit ={
+    logger.info(s"发送控制事件${event}")
+    connection.foreach(_.sendMessage(JtvMessage(event,width,height)))
+  }
+
+  /**
+    * 发送连接请求
+    */
+  def sendControlReq(): Unit ={
+    logger.info(s"发送控制申请至：${targetSessionId}-${targetSessionPassword}")
+    for(sessionid <- ConnectionFactory.getSessionId; conn <- connection){
+      conn.sendMessage(ControlRequest(targetSessionId,targetSessionPassword,sessionid,None))
+    }
+  }
+
+  /**
+    * 连接控制响应
+    * @param controlResponse
+    */
+  def receiveControlResp(controlResponse: ControlResponse): Unit ={
+    logger.info(s"连接控制响应:${controlResponse}")
+  }
+
+  def stopControl(): Unit ={
+    logger.info("停止控制")
+    connection.foreach(_.close())
+  }
+
+  /**
+    * 接收远程桌面图像
+    * @param screenCapture
+    */
+  def receiveScreenCapture(screenCapture: ScreenCaptureMessage): Unit ={
+    logger.info(s"接收到图像${screenCapture}")
+    this.setChanged()
+    this.notifyObservers(screenCapture)
+  }
+
+  /**
+    * 接收到错误事件
+    * @param errorMessage
+    */
+  def receiveErrorMessage(errorMessage: ErrorMessage): Unit ={
+    logger.info(s"出错:${errorMessage.message}")
+    setChanged()
+    this.notifyObservers(errorMessage)
+  }
+
 }

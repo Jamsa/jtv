@@ -2,18 +2,16 @@ package com.github.jamsa.jtv.client.gui
 
 import java.awt.FlowLayout
 import java.awt.event._
-import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
 import java.util.{Observable, Observer}
 
-import com.github.jamsa.jtv.client.gui.MainFrame.setSize
-import com.github.jamsa.jtv.client.manager.JtvClientManager
+import com.github.jamsa.jtv.client.manager.{MainFrameManager, RemoteFrameManager}
 import com.github.jamsa.jtv.common.model.{ErrorMessage, LoginResponse, ScreenCaptureMessage}
 import com.github.jamsa.jtv.common.utils.ImageUtils
 import javax.imageio.ImageIO
 import javax.swing._
 
-object MainFrame extends JFrame{
+object MainFrame extends JFrame with Observer{
 
   val sessionId = new JTextField(10)
   val sessionPassword = new JTextField(10)
@@ -38,25 +36,13 @@ object MainFrame extends JFrame{
 
     setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE)
 
-    JtvClientManager.addObserver((o: Observable, arg: Any)=>{
-      arg match {
-        case resp:LoginResponse => {
-          sessionId.setText(resp.sessionId.toString)
-          sessionPassword.setText(resp.sessionPassword)
-        }
-        case msg:ErrorMessage =>{
-          JOptionPane.showMessageDialog(this,msg.message)
-      }
-        case _ => None
-      }
-    })
+    MainFrameManager.addObserver(this)
+
 
     connectBtn.addActionListener((e: ActionEvent)=>{
       val targetSessionId = JOptionPane.showInputDialog("请输入要控制的会话")
       if(targetSessionId!=null) {
-        JtvClientManager.sendControlReq(targetSessionId.toInt, "123")
-
-        new RemoteFrame().setVisible(true)
+        new RemoteFrame(targetSessionId.toInt, "123").setVisible(true)
       }
     })
 
@@ -64,58 +50,71 @@ object MainFrame extends JFrame{
   }
 
   initFrame()
+
+  override def update(o: Observable, arg: scala.Any): Unit = {
+    arg match {
+      case resp:LoginResponse => {
+        sessionId.setText(resp.sessionId.toString)
+        sessionPassword.setText(resp.sessionPassword)
+      }
+      case msg:ErrorMessage =>{
+        JOptionPane.showMessageDialog(this,msg.message)
+      }
+      case _ => None
+    }
+  }
 }
 
-class RemoteFrame extends JFrame with Observer{ frame=>
+class RemoteFrame(targetSessionId:Int,targetSessionPassword:String) extends JFrame with Observer{ frame=>
 
   val label = new JLabel()
+  val manager = new RemoteFrameManager(targetSessionId,targetSessionPassword)
   private def initFrame(): Unit ={
     val contentPanel = getContentPane
     contentPanel.add(label)
     setSize(960,540)
 
-
-    JtvClientManager.addObserver(frame)
+    manager.addObserver(frame)
 
     addWindowListener(new WindowAdapter {
       override def windowClosing(e: WindowEvent): Unit = {
         super.windowClosing(e)
-        JtvClientManager.stopControl()
-        JtvClientManager.deleteObserver(frame)
+        manager.stopControl()
+        manager.deleteObserver(frame)
       }
     })
 
     val mouseAdapter = new MouseAdapter {
       override def mouseClicked(e: MouseEvent): Unit = {
-        JtvClientManager.sendEvent(e,frame.getWidth,frame.getHeight)
+        manager.sendEvent(e,frame.getWidth,frame.getHeight)
       }
 
       override def mousePressed(e: MouseEvent): Unit = {
-        JtvClientManager.sendEvent(e,frame.getWidth,frame.getHeight)
+        manager.sendEvent(e,frame.getWidth,frame.getHeight)
       }
 
       override def mouseReleased(e: MouseEvent): Unit = {
-        JtvClientManager.sendEvent(e,frame.getWidth,frame.getHeight)
+        manager.sendEvent(e,frame.getWidth,frame.getHeight)
       }
 
       override def mouseEntered(e: MouseEvent): Unit = {
-        JtvClientManager.sendEvent(e,frame.getWidth,frame.getHeight)
+        manager.sendEvent(e,frame.getWidth,frame.getHeight)
       }
 
       override def mouseExited(e: MouseEvent): Unit = {
-        JtvClientManager.sendEvent(e,frame.getWidth,frame.getHeight)
+        manager.sendEvent(e,frame.getWidth,frame.getHeight)
       }
 
       override def mouseWheelMoved(e: MouseWheelEvent): Unit = {
-        JtvClientManager.sendEvent(e,frame.getWidth,frame.getHeight)
+        manager.sendEvent(e,frame.getWidth,frame.getHeight)
       }
 
       override def mouseDragged(e: MouseEvent): Unit = {
-        JtvClientManager.sendEvent(e,frame.getWidth,frame.getHeight)
+        manager.sendEvent(e,frame.getWidth,frame.getHeight)
       }
 
       override def mouseMoved(e: MouseEvent): Unit = {
-        JtvClientManager.sendEvent(e,frame.getWidth,frame.getHeight)
+        manager.sendEvent(e,frame.getWidth,frame.getHeight)
       }
     }
 
@@ -125,19 +124,21 @@ class RemoteFrame extends JFrame with Observer{ frame=>
 
     val keyAdapter = new KeyAdapter {
       override def keyTyped(e: KeyEvent): Unit = {
-        JtvClientManager.sendEvent(e,frame.getWidth,frame.getHeight)
+        manager.sendEvent(e,frame.getWidth,frame.getHeight)
       }
 
       override def keyPressed(e: KeyEvent): Unit = {
-        JtvClientManager.sendEvent(e,frame.getWidth,frame.getHeight)
+        manager.sendEvent(e,frame.getWidth,frame.getHeight)
       }
 
       override def keyReleased(e: KeyEvent): Unit = {
-        JtvClientManager.sendEvent(e,frame.getWidth,frame.getHeight)
+        manager.sendEvent(e,frame.getWidth,frame.getHeight)
       }
     }
 
     label.addKeyListener(keyAdapter)
+    manager.connect()
+    manager.sendControlReq()
   }
 
   initFrame()
@@ -148,6 +149,10 @@ class RemoteFrame extends JFrame with Observer{ frame=>
       case m:ScreenCaptureMessage =>{
         label.setIcon(new ImageIcon(ImageUtils.resizeImage(ImageIO.read(new ByteArrayInputStream(m.image)),960,540)))
       }
+      case msg:ErrorMessage =>{
+        JOptionPane.showMessageDialog(this,msg.message)
+      }
+      case _ => None
     }
   }
 }

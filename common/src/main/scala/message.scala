@@ -2,7 +2,7 @@ package com.github.jamsa.jtv.common.model
 
 import java.awt.event.{InputEvent, KeyEvent, MouseEvent}
 import java.awt.image.BufferedImage
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
+import java.io.{ByteArrayOutputStream}
 
 import com.github.jamsa.jtv.common.utils.{CodecUtils, ImageUtils}
 
@@ -13,7 +13,7 @@ import javax.imageio.ImageIO
 //数据帧
 object JtvFrameType extends Enumeration {
   type JtvFrameType = Value
-  val KEY_EVENT ,MOUSE_EVENT,SCREEN_CAPTURE,LOGIN_REQUEST,LOGIN_RESPONSE,CONTROL_REQUEST,CONTROL_RESPONSE = Value
+  val KEY_EVENT ,MOUSE_EVENT,SCREEN_CAPTURE,LOGIN_REQUEST,LOGIN_RESPONSE,CONTROL_REQUEST,CONTROL_RESPONSE,ERROR_MESSAGE,LOGOUT_REQUEST,UNKNOW = Value
 }
 import JtvFrameType._
 class JtvFrame(val version:Int, val msgType:JtvFrameType, val sessionId:Int, val contentLength:Int, val content:Array[Byte])
@@ -30,6 +30,9 @@ object JtvFrame{
       case _:LoginResponse => LOGIN_RESPONSE
       case _:ControlRequest => CONTROL_REQUEST
       case _:ControlResponse => CONTROL_RESPONSE
+      case _:ErrorMessage => ERROR_MESSAGE
+      case _:LogoutRequest => LOGOUT_REQUEST
+      case _ => UNKNOW
     }
 
     Try(CodecUtils.encode(jvtMessage)) match {
@@ -48,28 +51,35 @@ object JtvFrame{
 }
 
 //消息
-trait JtvMessage{}
-//sealed case class JvtMessage()
+sealed trait JtvMessage
+
+//服务端处理的会话消息
+trait ServerSessionMessage extends JtvMessage
+//客户端处理的会话消息
+trait ClientSessionMessage extends JtvMessage
+//服务端路由转发的消息
+trait RoutableMessage extends JtvMessage
 
 //远程控制消息
 //case class ControlMessage() extends JtvMessage
-case class ScreenCaptureMessage(val image:Array[Byte], val originWidth:Int, val originHeight:Int) extends JtvMessage
-case class MouseEventMessage(val mouseEvent: MouseEvent, val screenWidth:Int, val screenHeight:Int) extends JtvMessage
-case class KeyEventMessage(val keyEvent: KeyEvent) extends JtvMessage
+case class ScreenCaptureMessage(val image:Array[Byte], val originWidth:Int, val originHeight:Int) extends RoutableMessage with ClientSessionMessage
+case class MouseEventMessage(val mouseEvent: MouseEvent, val screenWidth:Int, val screenHeight:Int) extends RoutableMessage with ClientSessionMessage
+case class KeyEventMessage(val keyEvent: KeyEvent) extends RoutableMessage with ClientSessionMessage
 
-case class ErrorMessage(val message:String) extends JtvMessage
+case class ErrorMessage(val message:String) extends RoutableMessage with ClientSessionMessage
+
 //登录
-case class LoginRequest(val username:String,val password:String) extends JtvMessage
-case class LoginResponse(val result:Boolean,val message:String,val sessionId:Int,val sessionPassword:String) extends JtvMessage
-case class LogoutRequest(val sessionId:String) extends JtvMessage
+case class LoginRequest(val username:String,val password:String) extends ServerSessionMessage
+case class LoginResponse(val result:Boolean,val message:String,val sessionId:Int,val sessionPassword:String) extends ClientSessionMessage
+case class LogoutRequest(val sessionId:String) extends ServerSessionMessage
 
 //请求控制
-case class ControlRequest(val targetSessionId:Int,val targetSessionPassword:String,val sourceSessionId:Int,val sourceChannelId:Option[String]) extends JtvMessage{
-  def this(targetSessionId:Int,targetSessionPassword:String,sourceSessionId:Int){
+case class ControlRequest(val targetSessionId:Int,val targetSessionPassword:String,val sourceSessionId:Int,val sourceChannelId:Option[String]) extends ServerSessionMessage with ClientSessionMessage {
+  /*def this(targetSessionId:Int,targetSessionPassword:String,sourceSessionId:Int){
     this(targetSessionId,targetSessionPassword,sourceSessionId,None)
-  }
+  }*/
 }
-case class ControlResponse(val result:Boolean,val message:String,val sourceSessionId:Int,val sourceChannelId:String) extends JtvMessage
+case class ControlResponse(val result:Boolean,val message:String,val sourceSessionId:Int,val sourceChannelId:String) extends ServerSessionMessage with ClientSessionMessage
 
 /*
 object RequestMessageType extends Enumeration{

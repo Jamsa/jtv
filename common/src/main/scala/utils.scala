@@ -1,9 +1,10 @@
 package com.github.jamsa.jtv.common.utils
 
-import java.awt.{Graphics2D, Image}
+import java.awt.{Image}
 import java.awt.image.BufferedImage
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, ObjectInputStream, ObjectOutputStream}
 
+import com.github.jamsa.jtv.common.network.Connection
 import io.netty.channel.Channel
 import io.netty.util.AttributeKey
 
@@ -41,7 +42,9 @@ object ImageUtils{
 
 
 object ChannelUtils{
-  val SESSIONID_KEY = AttributeKey.newInstance[Int]("sessionId")
+  private val SESSIONID_KEY = AttributeKey.newInstance[Int]("sessionId")
+
+  private val CONNECTION_KEY = AttributeKey.newInstance[Connection]("connection")
 
   def getSessionId(channel:Channel)={
     Option(channel.attr(SESSIONID_KEY).get())
@@ -51,4 +54,11 @@ object ChannelUtils{
     channel.attr(SESSIONID_KEY).set(sessionId)
   }
 
+  def setConnection(channel:Channel,conn:Connection)={
+    channel.attr(CONNECTION_KEY).set(conn)
+  }
+
+  def getConnection(channel: Channel) ={
+    Option(channel.attr(CONNECTION_KEY).get())
+  }
 }
