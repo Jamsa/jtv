@@ -153,6 +153,7 @@ object MainFrameManager extends Observable{
         val x = mouseEvent.getX * dm.width/mouseEventMessage.screenWidth
         val y = mouseEvent.getY * dm.height/mouseEventMessage.screenHeight
         robot.mouseMove(x, y)
+        logger.info(s"(${mouseEvent.getX},${mouseEvent.getY})->(${x},${y})")
       }
       case _ => None
     }

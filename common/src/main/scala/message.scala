@@ -96,8 +96,8 @@ object JtvMessage{
     val width = bufferedImage.getWidth
     val height = bufferedImage.getHeight
 
-    val newWidth = 1280
-    val ratio = width/1280
+    val newWidth = 960
+    val ratio = width/newWidth
     val newHeight = height*ratio.toInt
 
     val resizedImage = ImageUtils.resizeImage(bufferedImage,newWidth,newHeight)

@@ -1,7 +1,8 @@
 package com.github.jamsa.jtv.client.gui
 
-import java.awt.FlowLayout
+import java.awt._
 import java.awt.event._
+import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
 import java.util.{Observable, Observer}
 
@@ -65,13 +66,40 @@ object MainFrame extends JFrame with Observer{
   }
 }
 
+class RemoteDesktopPanel extends JPanel {
+
+  private var image:Option[BufferedImage] = None
+    private var changed = true
+
+  setBackground(Color.GRAY)
+
+  def setImage(image: BufferedImage): Unit = { //this.image = image;
+    this.image = Some(image)
+    this.changed=true
+    this.repaint()
+  }
+
+  override def getPreferredSize: Dimension = {
+    super.getPreferredSize
+  }
+
+  override def paintComponent(g: Graphics): Unit = {
+    super.paintComponent(g)
+    if(changed && image.isDefined) {
+      val g2d = g.asInstanceOf[Graphics2D]
+      g2d.drawImage(image.get,0,0,getWidth,getHeight,this)
+      changed=false
+    }
+  }
+
+}
+
 class RemoteFrame(targetSessionId:Int,targetSessionPassword:String) extends JFrame with Observer{ frame=>
 
-  val label = new JLabel()
+  val canvasPanel = new RemoteDesktopPanel()//new JLabel()
   val manager = new RemoteFrameManager(targetSessionId,targetSessionPassword)
   private def initFrame(): Unit ={
-    val contentPanel = getContentPane
-    contentPanel.add(label)
+    setContentPane(canvasPanel)
     setSize(960,540)
 
     manager.addObserver(frame)
@@ -86,57 +114,57 @@ class RemoteFrame(targetSessionId:Int,targetSessionPassword:String) extends JFra
 
     val mouseAdapter = new MouseAdapter {
       override def mouseClicked(e: MouseEvent): Unit = {
-        manager.sendEvent(e,frame.getWidth,frame.getHeight)
+        manager.sendEvent(e,canvasPanel.getWidth,canvasPanel.getHeight)
       }
 
       override def mousePressed(e: MouseEvent): Unit = {
-        manager.sendEvent(e,frame.getWidth,frame.getHeight)
+        manager.sendEvent(e,canvasPanel.getWidth,canvasPanel.getHeight)
       }
 
       override def mouseReleased(e: MouseEvent): Unit = {
-        manager.sendEvent(e,frame.getWidth,frame.getHeight)
+        manager.sendEvent(e,canvasPanel.getWidth,canvasPanel.getHeight)
       }
 
       override def mouseEntered(e: MouseEvent): Unit = {
-        manager.sendEvent(e,frame.getWidth,frame.getHeight)
+        manager.sendEvent(e,canvasPanel.getWidth,canvasPanel.getHeight)
       }
 
       override def mouseExited(e: MouseEvent): Unit = {
-        manager.sendEvent(e,frame.getWidth,frame.getHeight)
+        manager.sendEvent(e,canvasPanel.getWidth,canvasPanel.getHeight)
       }
 
       override def mouseWheelMoved(e: MouseWheelEvent): Unit = {
-        manager.sendEvent(e,frame.getWidth,frame.getHeight)
+        manager.sendEvent(e,canvasPanel.getWidth,canvasPanel.getHeight)
       }
 
       override def mouseDragged(e: MouseEvent): Unit = {
-        manager.sendEvent(e,frame.getWidth,frame.getHeight)
+        manager.sendEvent(e,canvasPanel.getWidth,canvasPanel.getHeight)
       }
 
       override def mouseMoved(e: MouseEvent): Unit = {
-        manager.sendEvent(e,frame.getWidth,frame.getHeight)
+        manager.sendEvent(e,canvasPanel.getWidth,canvasPanel.getHeight)
       }
     }
 
-    label.addMouseListener(mouseAdapter)
-    label.addMouseMotionListener(mouseAdapter)
-    label.addMouseWheelListener(mouseAdapter)
+    canvasPanel.addMouseListener(mouseAdapter)
+    canvasPanel.addMouseMotionListener(mouseAdapter)
+    canvasPanel.addMouseWheelListener(mouseAdapter)
 
     val keyAdapter = new KeyAdapter {
       override def keyTyped(e: KeyEvent): Unit = {
-        manager.sendEvent(e,frame.getWidth,frame.getHeight)
+        manager.sendEvent(e,canvasPanel.getWidth,canvasPanel.getHeight)
       }
 
       override def keyPressed(e: KeyEvent): Unit = {
-        manager.sendEvent(e,frame.getWidth,frame.getHeight)
+        manager.sendEvent(e,canvasPanel.getWidth,canvasPanel.getHeight)
       }
 
       override def keyReleased(e: KeyEvent): Unit = {
-        manager.sendEvent(e,frame.getWidth,frame.getHeight)
+        manager.sendEvent(e,canvasPanel.getWidth,canvasPanel.getHeight)
       }
     }
 
-    label.addKeyListener(keyAdapter)
+    canvasPanel.addKeyListener(keyAdapter)
     manager.connect()
     manager.sendControlReq()
   }
@@ -147,7 +175,8 @@ class RemoteFrame(targetSessionId:Int,targetSessionPassword:String) extends JFra
     if(!this.isVisible) return
     arg match  {
       case m:ScreenCaptureMessage =>{
-        label.setIcon(new ImageIcon(ImageUtils.resizeImage(ImageIO.read(new ByteArrayInputStream(m.image)),960,540)))
+        //label.setIcon(new ImageIcon(ImageUtils.resizeImage(ImageIO.read(new ByteArrayInputStream(m.image)),960,540)))
+        canvasPanel.setImage(ImageIO.read(new ByteArrayInputStream(m.image)))
       }
       case msg:ErrorMessage =>{
         JOptionPane.showMessageDialog(this,msg.message)
