@@ -1,4 +1,9 @@
-本项目是一个学习项目，目标是使用Scala + Netty实现类似远程桌面功能，目前功能还十分简陋。
+本项目是一个学习项目，目标是使用Scala + Netty实现类似远程桌面功能，目前已经实现基本的远程控制功能。
+
+开发笔记在我的[Github Blog](http://jamsa.github.io/jtvkai-fa-bi-ji-1-kai-shi.html)
+
+ - [准备](http://jamsa.github.io/jtvkai-fa-bi-ji-1-kai-shi.html)
+ - [网络通讯](http://jamsa.github.io/jtvkai-fa-bi-ji-2-wang-luo-tong-xun.html)
 
 版本：
     scala 2.12.6
