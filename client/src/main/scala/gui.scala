@@ -1,13 +1,14 @@
 package com.github.jamsa.jtv.client.gui
 
+
 import java.awt._
 import java.awt.event._
 import java.awt.image.BufferedImage
-import java.io.ByteArrayInputStream
+import java.io.{ByteArrayInputStream, File}
 import java.util.{Observable, Observer}
 
 import com.github.jamsa.jtv.client.manager.{MainFrameManager, RemoteFrameManager}
-import com.github.jamsa.jtv.common.model.{ErrorMessage, LoginResponse, ScreenCaptureMessage}
+import com.github.jamsa.jtv.common.model._
 import com.github.jamsa.jtv.common.utils.ImageUtils
 import javax.imageio.ImageIO
 import javax.swing._
@@ -145,6 +146,17 @@ class RemoteFrame(targetSessionId:Int,targetSessionPassword:String) extends JFra
   private def initFrame(): Unit ={
     setContentPane(canvasPanel)
     setSize(960,540)
+    val menuBar = new JMenuBar
+    val fileMenu = new JMenu("文件")
+    menuBar.add(fileMenu)
+    val remoteFileMenuItem = new JMenuItem("文件传输")
+    fileMenu.add(remoteFileMenuItem)
+    setJMenuBar(menuBar)
+
+    remoteFileMenuItem.addActionListener(e=>{
+      val fileFrame = new RemoteFileFrame(targetSessionId,manager)
+      fileFrame.setVisible(true)
+    })
 
     manager.addObserver(frame)
 
@@ -228,4 +240,202 @@ class RemoteFrame(targetSessionId:Int,targetSessionPassword:String) extends JFra
       case _ => None
     }
   }
+}
+
+class RemoteFileFrame(val targetSessionId:Int,val manager:RemoteFrameManager) extends JFrame with Observer{frame =>
+  val llabel = new JLabel("本地")
+  val rlabel = new JLabel("远程")
+  val lpath = new JTextField()
+  val rpath = new JTextField()
+  val ltoolbar = new JLabel("本地工具")
+  val rtoolbar = new JLabel("远程工具")
+  val llist = new JList[FileInfo]()
+  llist.setCellRenderer(new FileRender)
+  llist.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
+  val rlist = new JList[FileInfo]()
+  rlist.setCellRenderer(new FileRender)
+  rlist.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
+  val lsview = new JScrollPane()
+  lsview.setViewportView(llist)
+  val rsview =new JScrollPane()
+  rsview.setViewportView(rlist)
+
+  val transferToolbar = new JToolBar(null, SwingConstants.VERTICAL)
+  val ltorBtn = new JButton(">")
+  val rtolBtn = new JButton("<")
+  transferToolbar.add(ltorBtn)
+  transferToolbar.add(rtolBtn)
+
+  def initFrame(): Unit ={
+    setTitle("文件传输")
+    setSize(600,500)
+
+    manager.addObserver(frame)
+
+    addWindowListener(new WindowAdapter {
+      override def windowClosing(e: WindowEvent): Unit = {
+        super.windowClosing(e)
+        manager.deleteObserver(frame)
+      }
+    })
+
+    val layout = new GridBagLayout()
+    val panel = getContentPane
+    panel.setLayout(layout)
+
+    panel.add(llabel)
+    panel.add(new JLabel())
+    panel.add(rlabel)
+    panel.add(ltoolbar)
+    panel.add(new JLabel())
+    panel.add(rtoolbar)
+    panel.add(lpath)
+    panel.add(new JLabel())
+    panel.add(rpath)
+    panel.add(lsview)
+    panel.add(transferToolbar)
+    panel.add(rsview)
+
+    llist.addMouseListener(new MouseAdapter {
+      override def mouseClicked(e: MouseEvent): Unit = {
+        if(e.getClickCount==2){
+          val fileInfo = llist.getModel.getElementAt(llist.getSelectedIndex)
+          if(fileInfo.file.isDirectory){
+            llist.setListData(manager.listFile(fileInfo.file))
+            lpath.setText(fileInfo.file.getAbsolutePath)
+          }
+        }
+      }
+    })
+
+    rlist.addMouseListener(new MouseAdapter {
+      override def mouseClicked(e: MouseEvent): Unit = {
+        if(e.getClickCount==2){
+          val fileInfo = rlist.getModel.getElementAt(rlist.getSelectedIndex)
+          if(fileInfo.file.isDirectory){
+            manager.sendFileListRequest(FileListRequest(fileInfo.file))
+          }
+        }
+      }
+    })
+
+    lpath.addKeyListener(new KeyAdapter {
+      override def keyReleased(e: KeyEvent): Unit = {
+        val f = new File(lpath.getText)
+        if(f.exists() ){
+          val directory = if(f.isDirectory) f else f.getParentFile
+          llist.setListData(manager.listFile(directory))
+        }
+      }
+    })
+
+    rpath.addKeyListener(new KeyAdapter {
+      override def keyPressed(e: KeyEvent): Unit = {
+        val f = new File(rpath.getText)
+        manager.sendFileListRequest(FileListRequest(f))
+      }
+    })
+
+
+    //元素布局
+    val s = new GridBagConstraints
+    s.fill = GridBagConstraints.BOTH
+    //该方法是为了设置如果组件所在的区域比组件本身要大时的显示情况
+    //NONE：不调整组件大小。
+    //HORIZONTAL：加宽组件，使它在水平方向上填满其显示区域，但是不改变高度。
+    //VERTICALss：加高组件，使它在垂直方向上填满其显示区域，但是不改变宽度。
+    //BOTH：使组件完全填满其显示区域。
+    s.gridwidth=1 //该方法是设置组件水平所占用的格子数，如果为0，就说明该组件是该行的最后一个
+    s.weightx = 0 //该方法设置组件水平的拉伸幅度，如果为0就说明不拉伸，不为0就随着窗口增大进行拉伸，0到1之间
+    s.weighty=0 //该方法设置组件垂直的拉伸幅度，如果为0就说明不拉伸，不为0就随着窗口增大进行拉伸，0到1之间
+    s.insets = new Insets(0,10,0,0) //左边留白
+    layout.setConstraints(llabel, s)
+
+    s.gridwidth=0
+    s.insets = new Insets(0,0,0,10) //右边留白
+    layout.setConstraints(rlabel,s)
+
+
+    s.gridwidth=1
+    s.insets = new Insets(0,10,0,0)
+    layout.setConstraints(ltoolbar,s)
+
+    s.gridwidth=0
+    s.insets = new Insets(0,0,0,10)
+    layout.setConstraints(rtoolbar,s)
+
+    s.gridwidth=1
+    s.weightx=1
+    s.insets = new Insets(0,10,0,0)
+    layout.setConstraints(lpath,s)
+
+    s.gridwidth=0
+    s.weightx=1
+    s.insets = new Insets(0,0,0,10)
+    layout.setConstraints(rpath,s)
+
+
+    s.gridwidth=1
+    s.weightx=1
+    s.weighty=1
+    s.insets = new Insets(0,10,0,0)
+    layout.setConstraints(lsview,s)
+
+
+
+    s.gridwidth=0
+    s.weightx=1
+    s.weighty=1
+    s.insets = new Insets(0,0,0,10)
+    layout.setConstraints(rsview,s)
+
+    manager.sendFileListRequest(FileListRequest(new File("/")))
+    llist.setListData(manager.listFile(new File("/")))
+    lpath.setText("/")
+    //llist.setSelectedIndex(0)
+  }
+
+  initFrame()
+
+
+  override def update(o: Observable, arg: scala.Any): Unit = {
+    arg match  {
+      case m:FileListResponse =>{
+        rlist.setListData(m.files)
+        rpath.setText(m.directory.getAbsolutePath)
+      }
+      case _ => None
+    }
+  }
+
+  //继承Java泛型类引起的问题
+  //https://www.scala-lang.org/old/node/10687
+  //https://stackoverflow.com/questions/7222161/jlist-that-contains-the-list-of-files-in-a-directory
+  //https://stackoverflow.com/questions/6440176/scala-overriding-generic-java-methods-ii
+  /*class FileRender extends DefaultListCellRenderer{
+    this:ListCellRenderer[scala.Any] =>
+    override def getListCellRendererComponent(list: JList[_<:scala.Any], value: scala.Any, index: Int, isSelected: Boolean, cellHasFocus: Boolean): Component = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
+
+  }*/
+  /*override def getListCellRendererComponent(list: JList[FileInfo], value: AnyRef, index: Int, isSelected: Boolean, cellHasFocus: Boolean): Component = {
+      val label = new JLabel()
+      label.setFocusable(true)
+      val fileInfo = value
+      //label.setText(fileInfo.file.getName)
+      //label.setIcon(ImageUtils.toImageIcon(fileInfo.icon))
+      label
+    }*/
+
+  class FileRender extends ListCellRenderer[FileInfo]{
+    val render = (new DefaultListCellRenderer).asInstanceOf[ListCellRenderer[FileInfo]]
+
+    override def getListCellRendererComponent(list: JList[_ <: FileInfo], value: FileInfo, index: Int, isSelected: Boolean, cellHasFocus: Boolean): Component = {
+      val result = render.getListCellRendererComponent(list,value,index,isSelected,cellHasFocus)
+      val label = result.asInstanceOf[JLabel]
+      label.setText(value.file.getName)
+      label.setIcon(ImageUtils.toImageIcon(value.icon))
+      label
+    }
+  }
+
 }

@@ -47,6 +47,12 @@ class ServerHandler extends SimpleChannelInboundHandler[JtvMessage]{
       case m:KeyEventMessage =>{
         JtvServerManager.routeMessage(ctx,m)
       }
+      case m:FileListRequest =>{
+        JtvServerManager.routeMessage(ctx,m)
+      }
+      case m:FileListResponse =>{
+        JtvServerManager.routeMessage(ctx,m)
+    }
       case _ => {
         logger.info(s"无法识别的消息，关闭连接${ctx.channel().id().asLongText()}")
         ctx.close()

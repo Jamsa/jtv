@@ -3,6 +3,7 @@ package com.github.jamsa.jtv.client.manager
 import java.awt.{Robot, Toolkit}
 import java.awt.event.{InputEvent, KeyEvent, MouseEvent}
 import java.awt.image.BufferedImage
+import java.io.File
 import java.util.Observable
 
 import com.github.jamsa.jtv.client.capture.ScreenCapture
@@ -11,6 +12,7 @@ import com.github.jamsa.jtv.common.model._
 import com.github.jamsa.jtv.common.network.{Connection, ConnectionCallback}
 import com.typesafe.scalalogging.Logger
 import io.netty.channel.{ChannelFuture, ChannelHandlerContext}
+import javax.swing.filechooser.FileSystemView
 
 
 object MainFrameManager extends Observable{
@@ -92,6 +94,7 @@ object MainFrameManager extends Observable{
         message match {
           case m:MouseEventMessage => receiveMouseEvent(m)
           case m:KeyEventMessage => receiveKeyEvent(m)
+          case m:FileListRequest => receiveFileListRequest(m)
           case _ => logger.warn(s"接收到无法处理的控制消息${message}")
         }
       }
@@ -175,6 +178,20 @@ object MainFrameManager extends Observable{
     this.notifyObservers(errorMessage)
   }
 
+
+  def receiveFileListRequest(fileListRequest: FileListRequest)={
+    logger.info(s"接收文件列表请求${fileListRequest}")
+    val directory = fileListRequest.directory
+    if(directory.exists()){
+      val listDirectory = if(directory.isDirectory) directory else directory.getParentFile
+      val files = listDirectory.listFiles().map(f => {
+        new FileInfo(f)
+      })
+      logger.info(s"发送文件列表，文件数量为${files.length}")
+      beControlConnection.foreach(_.sendMessage(FileListResponse(listDirectory,files)))
+    }
+  }
+
 }
 
 class RemoteFrameManager(val targetSessionId:Int,val targetSessionPassword:String) extends Observable{
@@ -193,6 +210,7 @@ class RemoteFrameManager(val targetSessionId:Int,val targetSessionPassword:Strin
           case m:ControlResponse => receiveControlResp(m)
           case m:ScreenCaptureMessage => receiveScreenCapture(m)
           case m:ErrorMessage => receiveErrorMessage(m)
+          case m:FileListResponse => receiveFileListResp(m)
           case _ => logger.warn(s"接收到无法处理的消息${message}")
         }
       }
@@ -251,6 +269,36 @@ class RemoteFrameManager(val targetSessionId:Int,val targetSessionPassword:Strin
     logger.info(s"出错:${errorMessage.message}")
     setChanged()
     this.notifyObservers(errorMessage)
+  }
+
+  /**
+    * 收到文件列表
+    * @param fileListResponse
+    */
+  def receiveFileListResp(fileListResponse: FileListResponse): Unit ={
+    logger.info(s"收到文件列表响应，包含${fileListResponse.files.length}个文件")
+    setChanged()
+    this.notifyObservers(fileListResponse)
+  }
+
+  def sendFileListRequest(fileListRequest: FileListRequest)={
+    logger.info(s"发送文件列表请求${fileListRequest}")
+    connection.foreach(_.sendMessage(fileListRequest))
+  }
+
+  //https://stackoverflow.com/questions/585534/what-is-the-best-way-to-find-the-users-home-directory-in-java
+  def listFile(directory:File): Array[FileInfo] ={
+    directory.listFiles().map(f => {
+      new FileInfo(f)
+    })
+  }
+
+  def listFile:Array[FileInfo] = {
+    //listFile(new File(System.getProperty("user.home")))
+    //FileSystemView.getFileSystemView.getRoots.toList.flatMap(f => listFile(f)).toList
+    FileSystemView.getFileSystemView.getRoots.map(f=>{
+      new FileInfo(f)
+    })
   }
 
 }

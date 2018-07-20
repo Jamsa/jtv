@@ -2,13 +2,12 @@ package com.github.jamsa.jtv.common.model
 
 import java.awt.event.{InputEvent, KeyEvent, MouseEvent, MouseWheelEvent}
 import java.awt.image.BufferedImage
-import java.io.ByteArrayOutputStream
+import java.io.{File}
 
 import com.github.jamsa.jtv.common.utils.{CodecUtils, ImageUtils}
 import com.typesafe.scalalogging.Logger
 
 import scala.util.{Failure, Success, Try}
-import javax.imageio.ImageIO
 
 
 //数据帧
@@ -57,7 +56,6 @@ object JtvFrame{
 
 //消息
 sealed trait JtvMessage
-
 //服务端处理的会话消息
 trait ServerSessionMessage extends JtvMessage
 //客户端处理的会话消息
@@ -80,11 +78,22 @@ case class LogoutRequest(val sessionId:String) extends ServerSessionMessage
 
 //请求控制
 case class ControlRequest(val targetSessionId:Int,val targetSessionPassword:String,val sourceSessionId:Int,val sourceChannelId:Option[String]) extends ServerSessionMessage with ClientSessionMessage {
-  /*def this(targetSessionId:Int,targetSessionPassword:String,sourceSessionId:Int){
-    this(targetSessionId,targetSessionPassword,sourceSessionId,None)
-  }*/
+  def this(targetSessionId:Int,targetSessionPassword:String,sourceSessionId:Int)=this(targetSessionId,targetSessionPassword,sourceSessionId,None)
 }
 case class ControlResponse(val result:Boolean,val message:String,val sourceSessionId:Int,val sourceChannelId:String) extends ServerSessionMessage with ClientSessionMessage
+
+//文件操作
+//https://www.scala-lang.org/old/node/8183.html
+//https://stackoverflow.com/questions/2400794/overload-constructor-for-scalas-case-classes
+case class FileInfo(val file:File,val icon:Array[Byte]){
+  def this(file:File) = this(file,ImageUtils.toByteArray(ImageUtils.getFileIconImage(file)))
+
+}
+case class FileListRequest(val directory:File) extends RoutableMessage with ClientSessionMessage
+case class FileListResponse(val directory:File,val files:Array[FileInfo]) extends RoutableMessage with ClientSessionMessage
+case class FileTransferStart(val fileId:String,val fileName:String,val toDirectory:File,val size:Long) extends RoutableMessage with ClientSessionMessage
+case class FileTransferData(val fileId:String,val fromOffset:Long,val toOffset:Long,val size:Long) extends RoutableMessage with ClientSessionMessage
+case class FileTransferEnd(val fileId:String) extends RoutableMessage with ClientSessionMessage
 
 /*
 object RequestMessageType extends Enumeration{
@@ -106,9 +115,8 @@ object JtvMessage{
     val newHeight = height*ratio.toInt
 
     val resizedImage = ImageUtils.resizeImage(bufferedImage,newWidth,newHeight)
-    val bos = new ByteArrayOutputStream()
-    ImageIO.write(resizedImage,"png",bos)
-    ScreenCaptureMessage(bos.toByteArray,width,height)
+    val bytes = ImageUtils.toByteArray(resizedImage)
+    ScreenCaptureMessage(bytes,width,height)
   }
 
   def apply(inputEvent: InputEvent,screenWidth:Int,screenHeight:Int): JtvMessage = {
@@ -119,6 +127,8 @@ object JtvMessage{
       case _ => throw new RuntimeException("事件类型错误")
     }
   }
+
+  //todo:去掉各个case class上的构造器。将apply方法修改为其它名称。将所有消息的生成都集中到此处
 
   /*
 

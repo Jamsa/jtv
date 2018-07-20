@@ -1,12 +1,15 @@
 package com.github.jamsa.jtv.common.utils
 
-import java.awt.{Image}
+import java.awt.Image
 import java.awt.image.BufferedImage
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream, ObjectInputStream, ObjectOutputStream}
+import java.io._
 
 import com.github.jamsa.jtv.common.network.Connection
 import io.netty.channel.Channel
 import io.netty.util.AttributeKey
+import javax.imageio.ImageIO
+import javax.swing.ImageIcon
+import javax.swing.filechooser.FileSystemView
 
 object CodecUtils{
   def encode(obj:AnyRef):Array[Byte]={
@@ -32,12 +35,61 @@ object CodecUtils{
 object ImageUtils{
   def resizeImage(bufferedImage: BufferedImage,width:Int,height:Int): BufferedImage ={
     val tmp = bufferedImage.getScaledInstance(width, height, Image.SCALE_SMOOTH)
-    val resized = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB)
+    val resized = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB)
     val g2d = resized.createGraphics
     g2d.drawImage(tmp, 0, 0, null)
     g2d.dispose()
     resized
   }
+
+  def toBufferedImage(img:Image): BufferedImage ={
+    img match {
+      case i:BufferedImage =>i
+      case _ =>{
+        val bimage = new BufferedImage(img.getWidth(null), img.getHeight(null), BufferedImage.TYPE_INT_ARGB) //ARGB
+        val g2d = bimage.createGraphics
+        g2d.drawImage(img, 0, 0, null)
+        g2d.dispose()
+        bimage
+      }
+    }
+  }
+
+  def toByteArray(img:BufferedImage): Array[Byte] ={
+    val bos = new ByteArrayOutputStream()
+    ImageIO.write(img,"png",bos)
+    return bos.toByteArray
+  }
+
+  def toByteArray(img:Image): Array[Byte] ={
+    toByteArray(toBufferedImage(img))
+  }
+
+  def toBufferedImage(bytes:Array[Byte]): BufferedImage ={
+    val bis = new ByteArrayInputStream(bytes)
+    ImageIO.read(bis)
+  }
+
+  def toImageIcon(bytes:Array[Byte]):ImageIcon ={
+    new ImageIcon(toBufferedImage(bytes))
+  }
+
+  def toByteArray(icon:ImageIcon):Array[Byte]={
+    toByteArray(icon.getImage)
+  }
+
+  def getFileIconImage(file:File):BufferedImage ={
+    val icon = FileSystemView.getFileSystemView.getSystemIcon(file)
+    icon match {
+      case i:ImageIcon => toBufferedImage(i.getImage)
+      case _ =>{
+        val image = new BufferedImage(icon.getIconWidth, icon.getIconHeight, BufferedImage.TYPE_INT_ARGB)
+        icon.paintIcon(null, image.getGraphics, 0, 0)
+        image
+      }
+    }
+  }
+
 }
 
 
