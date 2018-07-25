@@ -38,6 +38,16 @@ class ServerHandler extends SimpleChannelInboundHandler[JtvMessage]{
       case m:ControlResponse => {
         JtvServerManager.controlResp(ctx,m)
       }
+      case m:FileTransferRequest => {
+        JtvServerManager.fileTransferReq(ctx,m)
+      }
+      case m:FileTransferResponse => {
+        JtvServerManager.fileTransferResp(ctx,m)
+      }
+      case m:RoutableMessage => {
+        JtvServerManager.routeMessage(ctx,m)
+      }
+      /*
       case m:ScreenCaptureMessage =>{
         JtvServerManager.routeMessage(ctx,m)
       }
@@ -52,7 +62,7 @@ class ServerHandler extends SimpleChannelInboundHandler[JtvMessage]{
       }
       case m:FileListResponse =>{
         JtvServerManager.routeMessage(ctx,m)
-    }
+      }*/
       case _ => {
         logger.info(s"无法识别的消息，关闭连接${ctx.channel().id().asLongText()}")
         ctx.close()

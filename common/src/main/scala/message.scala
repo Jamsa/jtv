@@ -89,10 +89,20 @@ case class FileInfo(val file:File,val icon:Array[Byte]){
   def this(file:File) = this(file,ImageUtils.toByteArray(ImageUtils.getFileIconImage(file)))
 
 }
+object FileTransferRequestType extends Enumeration {
+  type FileTransferRequestType = Value
+  val GET,PUT = Value
+}
 case class FileListRequest(val directory:File) extends RoutableMessage with ClientSessionMessage
 case class FileListResponse(val directory:File,val files:Array[FileInfo]) extends RoutableMessage with ClientSessionMessage
-case class FileTransferStart(val fileId:String,val fileName:String,val toDirectory:File,val size:Long) extends RoutableMessage with ClientSessionMessage
-case class FileTransferData(val fileId:String,val fromOffset:Long,val toOffset:Long,val size:Long) extends RoutableMessage with ClientSessionMessage
+
+case class FileTransferRequest(val targetSessionId:Int,val targetSessionPassword:String,val sourceSessionId:Int,val sourceChannelId:Option[String]) extends ServerSessionMessage with ClientSessionMessage{
+  def this(targetSessionId:Int,targetSessionPassword:String,sourceSessionId:Int)=this(targetSessionId,targetSessionPassword,sourceSessionId,None)
+}
+case class FileTransferResponse(val result:Boolean,val message:String,val sourceSessionId:Int,val sourceChannelId:String) extends ServerSessionMessage with ClientSessionMessage
+
+case class FileTransferStart(val fileId:String,val fileType:FileTransferRequestType.FileTransferRequestType,val from:FileInfo,val to:FileInfo) extends RoutableMessage with ClientSessionMessage
+case class FileTransferData(val fileId:String,val fromOffset:Long,val toOffset:Long,val data:Array[Byte]) extends RoutableMessage with ClientSessionMessage
 case class FileTransferEnd(val fileId:String) extends RoutableMessage with ClientSessionMessage
 
 /*

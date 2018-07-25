@@ -5,6 +5,7 @@ import java.awt._
 import java.awt.event._
 import java.awt.image.BufferedImage
 import java.io.{ByteArrayInputStream, File}
+import java.util
 import java.util.{Observable, Observer}
 
 import com.github.jamsa.jtv.client.manager.{MainFrameManager, RemoteFrameManager}
@@ -147,15 +148,27 @@ class RemoteFrame(targetSessionId:Int,targetSessionPassword:String) extends JFra
     setContentPane(canvasPanel)
     setSize(960,540)
     val menuBar = new JMenuBar
-    val fileMenu = new JMenu("文件")
-    menuBar.add(fileMenu)
-    val remoteFileMenuItem = new JMenuItem("文件传输")
-    fileMenu.add(remoteFileMenuItem)
     setJMenuBar(menuBar)
 
+    val fileMenu = new JMenu("文件")
+    menuBar.add(fileMenu)
+
+    val remoteFileMenuItem = new JMenuItem("文件传输")
+    fileMenu.add(remoteFileMenuItem)
     remoteFileMenuItem.addActionListener(e=>{
       val fileFrame = new RemoteFileFrame(targetSessionId,manager)
       fileFrame.setVisible(true)
+    })
+
+    val parseControlMenuItem = new JMenuItem("暂停控制")
+    fileMenu.add(parseControlMenuItem)
+    parseControlMenuItem.addActionListener(e=>{
+      manager.toggleControl()
+      val text = parseControlMenuItem.getText() match {
+        case "暂停控制" => "恢复控制"
+        case _ => "暂停控制"
+      }
+      parseControlMenuItem.setText(text)
     })
 
     manager.addObserver(frame)
@@ -261,6 +274,7 @@ class RemoteFileFrame(val targetSessionId:Int,val manager:RemoteFrameManager) ex
   rsview.setViewportView(rlist)
 
   val transferToolbar = new JToolBar(null, SwingConstants.VERTICAL)
+  transferToolbar.setFloatable(false)
   val ltorBtn = new JButton(">")
   val rtolBtn = new JButton("<")
   transferToolbar.add(ltorBtn)
@@ -321,6 +335,7 @@ class RemoteFileFrame(val targetSessionId:Int,val manager:RemoteFrameManager) ex
 
     lpath.addKeyListener(new KeyAdapter {
       override def keyReleased(e: KeyEvent): Unit = {
+        if(e.getKeyCode!=KeyEvent.VK_ENTER) return
         val f = new File(lpath.getText)
         if(f.exists() ){
           val directory = if(f.isDirectory) f else f.getParentFile
@@ -331,9 +346,26 @@ class RemoteFileFrame(val targetSessionId:Int,val manager:RemoteFrameManager) ex
 
     rpath.addKeyListener(new KeyAdapter {
       override def keyPressed(e: KeyEvent): Unit = {
+        if(e.getKeyCode!=KeyEvent.VK_ENTER) return
         val f = new File(rpath.getText)
         manager.sendFileListRequest(FileListRequest(f))
       }
+    })
+
+    ltorBtn.addActionListener(e=>{
+      val lfile = FileInfo(llist.getSelectedValue.file, Array[Byte](0))
+      val rfile = FileInfo(new File(rpath.getText), Array[Byte](0))
+      if(llist.getSelectedValue.file.isFile) {
+        manager.tranferFile(FileTransferRequestType.PUT, lfile,rfile)
+      } else {
+        JOptionPane.showMessageDialog(this,"暂不支持目录传输")
+      }
+    })
+
+    rtolBtn.addActionListener(e=>{
+      val rfile = rlist.getSelectedValue
+      val lfile = FileInfo(new File(lpath.getText),Array[Byte](0))
+      manager.tranferFile(FileTransferRequestType.GET,rfile,lfile)
     })
 
 

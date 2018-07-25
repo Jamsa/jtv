@@ -142,6 +142,7 @@ object JtvServerManager{
     })
   }
 
+  //控制请求和响应
   def controlReq(ctx: ChannelHandlerContext,controlRequest: ControlRequest): Unit ={
     val sessionId = controlRequest.sourceSessionId
     ChannelUtils.setSessionId(ctx.channel(),sessionId)
@@ -166,6 +167,36 @@ object JtvServerManager{
       case Some(channel) => {
         ServerSessionManager.pairChannels(channel,ctx.channel())
         channel.writeAndFlush(controlResponse)
+      }
+      case None => ctx.writeAndFlush(ErrorMessage("源会话不存在!"));ctx.close()
+    }
+  }
+
+  //todo:此处于控制请求和响应的处理完全相同，但是后续可能会将控制连接修改为被控与控制方改为一对多连接。文件传输只能是一对一连接
+  def fileTransferReq(ctx: ChannelHandlerContext,fileTransferRequest: FileTransferRequest): Unit ={
+    val sessionId = fileTransferRequest.sourceSessionId
+    ChannelUtils.setSessionId(ctx.channel(),sessionId)
+    logger.info(s"${sessionId}请求文件传输，目标session:${fileTransferRequest.targetSessionId}，请求Channel:${ctx.channel().id().asLongText()}")
+
+    ServerSessionManager.addWorkChannel(sessionId,ctx.channel())
+    ServerSessionManager.getSessionChannel(fileTransferRequest.targetSessionId) match {
+      case Some(channel) => channel.writeAndFlush(fileTransferRequest.copy(sourceChannelId = Some(ctx.channel().id().asLongText())))
+      case _ => ctx.channel().writeAndFlush(ErrorMessage("目标会话不存在!"));ctx.close()
+    }
+  }
+
+  def fileTransferResp(ctx:ChannelHandlerContext,fileTransferResponse: FileTransferResponse):Unit={
+    val sid = ChannelUtils.getSessionId(ctx.channel())
+    logger.info(s"${sid}文件传输响应，源session:${fileTransferResponse.sourceSessionId}，源Channel:${fileTransferResponse.sourceChannelId}")
+
+    sid.foreach(sessionId => {
+      ServerSessionManager.addWorkChannel(sessionId,ctx.channel())
+    })
+
+    ServerSessionManager.getWorkerChannel(fileTransferResponse.sourceSessionId,fileTransferResponse.sourceChannelId) match{
+      case Some(channel) => {
+        ServerSessionManager.pairChannels(channel,ctx.channel())
+        channel.writeAndFlush(fileTransferResponse)
       }
       case None => ctx.writeAndFlush(ErrorMessage("源会话不存在!"));ctx.close()
     }
