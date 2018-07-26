@@ -187,7 +187,7 @@ object MainFrameManager extends Observable{
     val directory = fileListRequest.directory
     if(directory.exists()){
       val listDirectory = if(directory.isDirectory) directory else directory.getParentFile
-      val files = listDirectory.listFiles().map(f => {
+      val files = listDirectory.listFiles().sortBy(_.getName).map(f => {
         new FileInfo(f)
       })
       logger.info(s"发送文件列表，文件数量为${files.length}")
@@ -307,7 +307,7 @@ class RemoteFrameManager(val targetSessionId:Int,val targetSessionPassword:Strin
     * @return
     */
   def listFile(directory:File): Array[FileInfo] ={
-    directory.listFiles().map(f => {
+    directory.listFiles().sortBy(_.getName).map(f => {
       new FileInfo(f)
     })
   }
@@ -336,6 +336,13 @@ class RemoteFrameManager(val targetSessionId:Int,val targetSessionPassword:Strin
     }*/
     var fileTransferThread = new FileTransferIssueThread(this,task)
     executors.submit(fileTransferThread)
+  }
+
+  sealed case class RefreshFileList()
+
+  def refreshFileList()={
+    setChanged()
+    this.notifyObservers(RefreshFileList())
   }
 }
 
@@ -400,6 +407,7 @@ class FileTransferIssueThread(remoteFrameManager: RemoteFrameManager,task:FileTr
             val endMsg = FileTransferEnd(task.fileId)
             logger.info(s"发送文件结束消息:${endMsg}")
             c.sendMessage(endMsg)
+            remoteFrameManager.refreshFileList()
           }catch{
             case e:Exception => {
               logger.error("文件读取出错",e)
@@ -437,6 +445,7 @@ class FileTransferIssueThread(remoteFrameManager: RemoteFrameManager,task:FileTr
       //c.sendMessage(FileTransferEnd(task.fileId))
       c.close()
     })
+    remoteFrameManager.refreshFileList()
   }
 
   def receiveFileTransferData(fileTransferData: FileTransferData):Unit ={
@@ -455,6 +464,7 @@ class FileTransferIssueThread(remoteFrameManager: RemoteFrameManager,task:FileTr
     logger.info(s"收到文件传输结束信息：${fileTransferEnd}")
     transferFile.foreach(_.close())
     fileTransferConnection.foreach(_.close())
+    remoteFrameManager.refreshFileList()
   }
 }
 

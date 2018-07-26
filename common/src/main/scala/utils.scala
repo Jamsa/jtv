@@ -8,7 +8,7 @@ import com.github.jamsa.jtv.common.network.Connection
 import io.netty.channel.Channel
 import io.netty.util.AttributeKey
 import javax.imageio.ImageIO
-import javax.swing.ImageIcon
+import javax.swing.{Icon, ImageIcon}
 import javax.swing.filechooser.FileSystemView
 
 object CodecUtils{
@@ -79,13 +79,16 @@ object ImageUtils{
   }
 
   def getFileIconImage(file:File):BufferedImage ={
-    val icon = FileSystemView.getFileSystemView.getSystemIcon(file)
+    val icon = Option(FileSystemView.getFileSystemView.getSystemIcon(file))
     icon match {
-      case i:ImageIcon => toBufferedImage(i.getImage)
-      case _ =>{
-        val image = new BufferedImage(icon.getIconWidth, icon.getIconHeight, BufferedImage.TYPE_INT_ARGB)
-        icon.paintIcon(null, image.getGraphics, 0, 0)
+      case Some(i:ImageIcon) => toBufferedImage(i.getImage)
+      case Some(i:Icon) => {
+        val image = new BufferedImage(i.getIconWidth, i.getIconHeight, BufferedImage.TYPE_INT_ARGB)
+        i.paintIcon(null, image.getGraphics, 0, 0)
         image
+      }
+      case _ =>{
+        new BufferedImage(16,16,BufferedImage.TYPE_INT_ARGB)
       }
     }
   }

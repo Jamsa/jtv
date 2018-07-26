@@ -3,10 +3,11 @@ package com.github.jamsa.jtv.client
 import java.io.{File, FileInputStream}
 import java.util.Properties
 
-import com.github.jamsa.jtv.client.gui.MainFrame
+
 import com.github.jamsa.jtv.client.manager.MainFrameManager
 import com.github.jamsa.jtv.client.manager.MainFrameManager.logger
 import com.github.jamsa.jtv.client.network.{ConnectionFactory, Network}
+import com.github.jamsa.jtv.client
 
 import scala.util.{Failure, Success, Try}
 
@@ -30,7 +31,7 @@ object JtvClientMain {
       }
     }
 
-    MainFrame.setVisible(true)
+    client.gui.MainFrame.setVisible(true)
     Network.startup(host,port)
 
     MainFrameManager.loginReq("","")

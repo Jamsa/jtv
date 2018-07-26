@@ -18,7 +18,9 @@ class ClientHandler extends SimpleChannelInboundHandler[JtvMessage]{
   val logger = Logger[ClientHandler]
 
   override def channelRead0(ctx: ChannelHandlerContext, msg: JtvMessage): Unit = {
-    logger.info(s"接收到消息:${msg}")
+    if(!msg.isInstanceOf[ScreenCaptureMessage])
+      logger.info(s"接收到消息:${msg}")
+    
     msg match {
       /*case m:LoginResponse =>JtvClientManager.loginResp(ctx,m)
       case m:ScreenCaptureMessage => JtvClientManager.receiveScreenCapture(m)

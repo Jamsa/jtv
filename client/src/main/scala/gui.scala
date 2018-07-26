@@ -1,11 +1,9 @@
 package com.github.jamsa.jtv.client.gui
 
-
 import java.awt._
 import java.awt.event._
 import java.awt.image.BufferedImage
 import java.io.{ByteArrayInputStream, File}
-import java.util
 import java.util.{Observable, Observer}
 
 import com.github.jamsa.jtv.client.manager.{MainFrameManager, RemoteFrameManager}
@@ -336,19 +334,14 @@ class RemoteFileFrame(val targetSessionId:Int,val manager:RemoteFrameManager) ex
     lpath.addKeyListener(new KeyAdapter {
       override def keyReleased(e: KeyEvent): Unit = {
         if(e.getKeyCode!=KeyEvent.VK_ENTER) return
-        val f = new File(lpath.getText)
-        if(f.exists() ){
-          val directory = if(f.isDirectory) f else f.getParentFile
-          llist.setListData(manager.listFile(directory))
-        }
+        refreshLlist()
       }
     })
 
     rpath.addKeyListener(new KeyAdapter {
       override def keyPressed(e: KeyEvent): Unit = {
         if(e.getKeyCode!=KeyEvent.VK_ENTER) return
-        val f = new File(rpath.getText)
-        manager.sendFileListRequest(FileListRequest(f))
+        refreshRlist()
       }
     })
 
@@ -430,11 +423,29 @@ class RemoteFileFrame(val targetSessionId:Int,val manager:RemoteFrameManager) ex
   initFrame()
 
 
+  def refreshLlist(): Unit ={
+    val f = new File(lpath.getText)
+    if(f.exists() ){
+      val directory = if(f.isDirectory) f else f.getParentFile
+      llist.setListData(manager.listFile(directory))
+    }
+  }
+
+  def refreshRlist()={
+    val f = new File(rpath.getText)
+    manager.sendFileListRequest(FileListRequest(f))
+  }
+
+
   override def update(o: Observable, arg: scala.Any): Unit = {
     arg match  {
       case m:FileListResponse =>{
         rlist.setListData(m.files)
         rpath.setText(m.directory.getAbsolutePath)
+      }
+      case m:manager.RefreshFileList =>{
+        refreshLlist()
+        refreshRlist()
       }
       case _ => None
     }
