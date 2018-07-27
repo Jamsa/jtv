@@ -71,11 +71,34 @@ object ServerSessionManager{
           ChannelUtils.getSessionId(future.channel()).foreach(workerChannelGroups.get(_).foreach(_.remove(future.channel())))
 
           //关闭对向连接
-          getPairChannel(future.channel()).foreach(channel=>{
-            channel.writeAndFlush(ErrorMessage("连接中断!"))
+          getPairChannel(future.channel()).foreach(channelGroup=>{
+            /*channel=>channel.writeAndFlush(ErrorMessage("连接中断!"))
             logger.info(s"会话${sessionId}工作连接${future.channel().id().asLongText()}的连接对${channel.id().asLongText()}即将被关闭...")
-            channel.close()
+            channel.close()*/
+            //取对向连接Group，从对向连接的对向连接Group中移除自己。如果移除后，只有Group元素为0，则关闭这个连接。
+            channelGroup.forEach(channel => {
+              getPairChannel(channel) match {
+                case None => {
+                  logger.info(s"会话${sessionId}工作连接${future.channel().id().asLongText()}的连接对${channel.id().asLongText()}即将被关闭...")
+                  channel.close()
+                }
+                case Some(g) => {
+                  g.remove(future.channel())
+                  if(g.size()==0) {
+                    logger.info(s"会话${sessionId}工作连接${future.channel().id().asLongText()}关闭后，其对向连接${channel.id().asLongText()}因没有其它对向连接，将被关闭...")
+                    channel.close()
+                  }else{
+                    logger.info(s"会话${sessionId}工作连接${future.channel().id().asLongText()}关闭后，其对向连接${channel.id().asLongText()}还有${g.size()}个对向连接，不会被关闭")
+                  }
+                }
+              }
+              logger.info(s"分离连接对${future.channel().id().asLongText()}<-->${channel.id().asLongText()}")
+            })
           })
+
+          //清除连接对信息
+          pairs.remove(future.channel())
+          logger.info(s"移出连接对key${future.channel().id().asLongText()}")
         })
       })
   }
@@ -102,11 +125,15 @@ object ServerSessionManager{
     workerChannelGroups.get(sessionId).flatMap(_.asScala.find(_.id().asLongText()==channelId))
   }
 
-  private val pairs = mutable.Map[Channel,Channel]()
+  //private val pairs = mutable.Map[Channel,Channel]()
+  private val pairs = mutable.Map[Channel,ChannelGroup]()
 
   def pairChannels(sourceChannel:Channel,targetChannel:Channel): Unit ={
-    pairs.put(sourceChannel,targetChannel)
-    pairs.put(targetChannel,sourceChannel)
+    //pairs.put(sourceChannel,targetChannel)
+    //pairs.put(targetChannel,sourceChannel)
+    pairs.getOrElseUpdate(sourceChannel,new DefaultChannelGroup(GlobalEventExecutor.INSTANCE)).add(targetChannel)
+    pairs.getOrElseUpdate(targetChannel,new DefaultChannelGroup(GlobalEventExecutor.INSTANCE)).add(sourceChannel)
+    logger.info(s"建立连接对${sourceChannel.id().asLongText()}<-->${targetChannel.id().asLongText()}")
   }
 
   def getPairChannel(channel:Channel) ={
@@ -156,7 +183,7 @@ object JtvServerManager{
   }
 
   def controlResp(ctx:ChannelHandlerContext,controlResponse: ControlResponse):Unit={
-    val sid = ChannelUtils.getSessionId(ctx.channel())
+    val sid = controlResponse.targetSessionId//ChannelUtils.getSessionId(ctx.channel())
     logger.info(s"${sid}控制响应，源session:${controlResponse.sourceSessionId}，源Channel:${controlResponse.sourceChannelId}")
 
     sid.foreach(sessionId => {
@@ -186,7 +213,7 @@ object JtvServerManager{
   }
 
   def fileTransferResp(ctx:ChannelHandlerContext,fileTransferResponse: FileTransferResponse):Unit={
-    val sid = ChannelUtils.getSessionId(ctx.channel())
+    val sid = fileTransferResponse.targetSessionId//ChannelUtils.getSessionId(ctx.channel())
     logger.info(s"${sid}文件传输响应，源session:${fileTransferResponse.sourceSessionId}，源Channel:${fileTransferResponse.sourceChannelId}")
 
     sid.foreach(sessionId => {

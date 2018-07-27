@@ -87,25 +87,32 @@ object MainFrameManager extends Observable{
     */
   def receiveControlReq(controlRequest: ControlRequest): Unit ={
     logger.info(s"接收到控制请求${controlRequest}")
-    //从新通道返回，此通道作为被控通道
-    beControlConnection = ConnectionFactory.createConnection(new ConnectionCallback {
-      override def onClose(future: ChannelFuture): Unit = {
-        stopCapture()
-        beControlConnection = None
-      }
 
-      override def onMessage(ctx: ChannelHandlerContext, message: JtvMessage): Unit = {
-        message match {
-          case m:MouseEventMessage => receiveMouseEvent(m)
-          case m:KeyEventMessage => receiveKeyEvent(m)
-          case m:FileListRequest => receiveFileListRequest(m)
-          case _ => logger.warn(s"接收到无法处理的控制消息${message}")
-        }
+    //从新通道返回，此通道作为被控通道
+    beControlConnection = beControlConnection match {
+      case None => {
+        ConnectionFactory.createConnection(new ConnectionCallback {
+          override def onClose(future: ChannelFuture): Unit = {
+            stopCapture()
+            beControlConnection = None
+          }
+
+          override def onMessage(ctx: ChannelHandlerContext, message: JtvMessage): Unit = {
+            message match {
+              case m:MouseEventMessage => receiveMouseEvent(m)
+              case m:KeyEventMessage => receiveKeyEvent(m)
+              case m:FileListRequest => receiveFileListRequest(m)
+              case _ => logger.warn(s"接收到无法处理的控制消息${message}")
+            }
+          }
+        })
       }
-    })
+      case Some(_) => beControlConnection
+    }
+
     beControlConnection.foreach(conn => {
       logger.info(s"接受控制请求${controlRequest}")
-      conn.sendMessage(ControlResponse(true,"接受控制",controlRequest.sourceSessionId,controlRequest.sourceChannelId.getOrElse("")))
+      conn.sendMessage(ControlResponse(true,"接受控制",controlRequest.sourceSessionId,controlRequest.sourceChannelId.getOrElse(""),ConnectionFactory.getSessionId))
       startCapture()
     })
 
@@ -496,7 +503,7 @@ class FileTransferReceiveThread(request:FileTransferRequest) extends Thread{
 
   override def run(): Unit = {
     fileTransferConnection.foreach(c=>{
-      val resp = FileTransferResponse(true,"接受传输",request.sourceSessionId,request.sourceChannelId.get)
+      val resp = FileTransferResponse(true,"接受传输",request.sourceSessionId,request.sourceChannelId.get,ConnectionFactory.getSessionId)
       logger.info(s"发送接受传输响应:${resp}")
       c.sendMessage(resp)
     })

@@ -80,7 +80,7 @@ case class LogoutRequest(val sessionId:String) extends ServerSessionMessage
 case class ControlRequest(val targetSessionId:Int,val targetSessionPassword:String,val sourceSessionId:Int,val sourceChannelId:Option[String]) extends ServerSessionMessage with ClientSessionMessage {
   def this(targetSessionId:Int,targetSessionPassword:String,sourceSessionId:Int)=this(targetSessionId,targetSessionPassword,sourceSessionId,None)
 }
-case class ControlResponse(val result:Boolean,val message:String,val sourceSessionId:Int,val sourceChannelId:String) extends ServerSessionMessage with ClientSessionMessage
+case class ControlResponse(val result:Boolean,val message:String,val sourceSessionId:Int,val sourceChannelId:String,val targetSessionId:Option[Int]) extends ServerSessionMessage with ClientSessionMessage
 
 //文件操作
 //https://www.scala-lang.org/old/node/8183.html
@@ -99,7 +99,7 @@ case class FileListResponse(val directory:File,val files:Array[FileInfo]) extend
 case class FileTransferRequest(val targetSessionId:Int,val targetSessionPassword:String,val sourceSessionId:Int,val sourceChannelId:Option[String]) extends ServerSessionMessage with ClientSessionMessage{
   def this(targetSessionId:Int,targetSessionPassword:String,sourceSessionId:Int)=this(targetSessionId,targetSessionPassword,sourceSessionId,None)
 }
-case class FileTransferResponse(val result:Boolean,val message:String,val sourceSessionId:Int,val sourceChannelId:String) extends ServerSessionMessage with ClientSessionMessage
+case class FileTransferResponse(val result:Boolean,val message:String,val sourceSessionId:Int,val sourceChannelId:String,val targetSessionId:Option[Int]) extends ServerSessionMessage with ClientSessionMessage
 
 case class FileTransferStart(val fileId:String,val fileType:FileTransferRequestType.FileTransferRequestType,val from:FileInfo,val to:FileInfo) extends RoutableMessage with ClientSessionMessage
 case class FileTransferData(val fileId:String,val fromOffset:Long,val toOffset:Long,val data:Array[Byte]) extends RoutableMessage with ClientSessionMessage

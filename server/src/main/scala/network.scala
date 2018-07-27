@@ -15,7 +15,8 @@ class ServerHandler extends SimpleChannelInboundHandler[JtvMessage]{
   private val logger = Logger(classOf[ServerHandler])
 
   override def channelRead0(ctx: ChannelHandlerContext, msg: JtvMessage): Unit = {
-    logger.info(s"接收消息:${msg}")
+    if(!msg.isInstanceOf[ScreenCaptureMessage])
+      logger.info(s"接收消息:${msg}")
 
     val sid = ChannelUtils.getSessionId(ctx.channel())
 
